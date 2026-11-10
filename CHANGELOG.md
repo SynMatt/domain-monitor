@@ -1,5 +1,14 @@
 # Domain Monitor changelog
 
+## 0.8.3 - 2026-11-10
+
+### Added
+- Added a complete repository structure reference describing every tracked source file.
+- Added dedicated documentation for the `static`, `templates`, and `tests` directories.
+
+### Changed
+- Improved public repository navigation and contributor guidance.
+
 ## 0.8.2 - 2026-11-10
 
 ### Changed
