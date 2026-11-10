@@ -47,16 +47,62 @@ HOST_PORT='8282'
 
 Review `CHANGELOG.md` for release history.
 
-## Updating
+<!-- BEGIN UPDATE COMMANDS -->
+## Updating Domain Monitor
 
-Check for and install stable releases with:
+Latest documented release: **v0.10.5**
+
+Run these commands through SSH on the application host, not in a separate development checkout. Adjust the directory if your installation uses another path.
+
+### Check for updates
 
 ```bash
+cd /opt/domain-monitor
 sudo ./scripts/update.sh --check
+```
+
+### Install the latest stable release
+
+```bash
+cd /opt/domain-monitor
 sudo ./scripts/update.sh
 ```
 
-See [`docs/upgrading.md`](docs/upgrading.md) for explicit-version updates, backup, restore, verification, and rollback behaviour.
+### Install this release explicitly
+
+```bash
+cd /opt/domain-monitor
+sudo ./scripts/update.sh --version 0.10.5
+```
+
+### Verify the deployment
+
+```bash
+cd /opt/domain-monitor
+sudo ./scripts/update.sh --check
+sudo docker compose ps
+sudo docker compose exec -T web python -c 'import app; print(app.APP_VERSION)'
+sudo docker compose config --images
+sudo docker compose port web 8080
+```
+
+Source and running versions should agree, both services should be healthy, and the published binding should match your deployment.
+
+### Manual backup
+
+```bash
+cd /opt/domain-monitor
+sudo ./scripts/backup.sh
+```
+
+Updates briefly interrupt service. Keep an off-host backup. Backups contain sensitive configuration and domain data; never publish them.
+
+These instructions assume a Git-managed installation with updater v0.10.5 or later. Older or script-managed installations need a reviewed migration/bootstrap first. Do not force a checkout over local changes. If an update fails, stop and retain its output and backup path before attempting recovery.
+
+Never share full `docker compose config` output: it can expose credentials. Use `docker compose config --quiet` for validation.
+
+See [the upgrade guide](docs/upgrading.md) for more information.
+<!-- END UPDATE COMMANDS -->
 
 ## Scope
 
