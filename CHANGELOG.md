@@ -1,5 +1,15 @@
 # Domain Monitor changelog
 
+## 0.10.1 - 2026-11-10
+
+### Fixed
+- Fixed updater backups so SQLite online backups are written directly from the bind-mounted host database.
+- Fixed restore ownership handling by using numeric UID/GID syntax without account-name lookup.
+- Fixed rollback to stop containers before replacing the SQLite database.
+
+### Security
+- Rollback now restores the database atomically through a temporary file before restarting services.
+
 ## 0.10.0 - 2026-11-10
 
 ### Added
