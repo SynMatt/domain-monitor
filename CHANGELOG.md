@@ -1,5 +1,11 @@
 # Domain Monitor changelog
 
+## 0.10.5 - 2026-11-11
+
+### Fixed
+- Moved the container readability normalization after all Dockerfile `COPY` instructions so regression tests, documentation, and scripts are readable by the non-root container user.
+- Added a regression check that the final permission-normalization instruction occurs after the test-suite copy.
+
 ## 0.10.4 - 2026-11-11
 
 ### Changed
