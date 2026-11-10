@@ -9,6 +9,7 @@ This software was developed with substantial AI assistance. It is provided **as-
 Review the source code, test it in a non-production environment, protect credentials and backups, and independently validate all results before relying on the software. No warranty or support commitment is provided.
 
 ## Features
+- Detected DNS host on domain cards, with nameserver evidence in history
 
 - Password-protected web dashboard
 - Shared daily check schedule with manual checks that do not shift the schedule
@@ -50,7 +51,7 @@ Review `CHANGELOG.md` for release history.
 <!-- BEGIN UPDATE COMMANDS -->
 ## Updating Domain Monitor
 
-Latest documented release: **v0.10.5**
+Latest documented release: **v0.11.0**
 
 Run these commands through SSH on the application host, not in a separate development checkout. Adjust the directory if your installation uses another path.
 
@@ -72,7 +73,7 @@ sudo ./scripts/update.sh
 
 ```bash
 cd /opt/domain-monitor
-sudo ./scripts/update.sh --version 0.10.5
+sudo ./scripts/update.sh --version 0.11.0
 ```
 
 ### Verify the deployment
@@ -141,3 +142,7 @@ Every release must update `APP_VERSION`, the displayed version, `CHANGELOG.md`, 
 ## License
 
 Domain Monitor is released under the [MIT License](LICENSE). The license permits use, copying, modification, distribution, sublicensing, and sale, subject to retaining the copyright and permission notice. The software is provided as-is without warranty.
+
+### DNS host detection
+
+Nameservers are collected during checks, not page loads. Provider labels are inferred. Unrecognised providers show nameserver hostnames; lookup failures show Unknown. Existing results show Not checked yet until refreshed. DNS host lookup does not affect email-health status.

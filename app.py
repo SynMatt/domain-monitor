@@ -42,7 +42,7 @@ from werkzeug.security import check_password_hash
 DATA=os.environ.get('DATA_DIR','/data')
 DB=DATA+'/monitor.sqlite3'
 logging.basicConfig(level=logging.INFO)
-APP_VERSION='0.10.5'
+APP_VERSION='0.11.0'
 @contextmanager
 def db():
     c=sqlite3.connect(DB,timeout=30); c.row_factory=sqlite3.Row
@@ -198,6 +198,8 @@ def dkim_check(domain,selected):
         except Exception as e: item=res('unknown','DNS/checker error: '+str(e))
         results.append(dict(selector=s,query=name,**item))
     return res(worst(results),'All configured selectors must pass.',selectors=results)
+from dns_host import lookup as dns_host_lookup, label as dns_host_label
+
 def isolated(kind,row):
     try:
         p=subprocess.run([sys.executable,__file__,'check',kind,row['domain'],row['selectors'],row['policy']],capture_output=True,text=True,timeout=120)
@@ -221,6 +223,7 @@ def worker():
                 for kind in ('spf','dkim','dmarc'):
                     beat(); data[kind]=isolated(kind,row)
                 data['status']=worst(data.values())
+                beat(); data['dns_host']=isolated('dns_host',row)
                 data['configuration']={k:row[k] for k in ('domain','label','selectors','policy')}
                 data['trigger']='scheduled' if scheduled else 'manual / new or edited domain'
                 now=time.time(); encoded=json.dumps(data)
@@ -235,6 +238,7 @@ def worker():
         except Exception:
             logging.exception('Worker loop error'); time.sleep(10)
 app=Flask(__name__)
+app.jinja_env.globals['dns_host_label']=dns_host_label
 app.secret_key=os.environ.get('SECRET_KEY','')
 app.config.update(MAX_CONTENT_LENGTH=16384,SESSION_COOKIE_HTTPONLY=True,SESSION_COOKIE_SAMESITE='Strict',PERMANENT_SESSION_LIFETIME=timedelta(hours=8))
 @app.template_filter('stamp')
@@ -464,7 +468,7 @@ if __name__=='__main__':
     elif mode=='worker': worker()
     elif mode=='check':
         _,_,kind,name,selected,policy=sys.argv
-        print(json.dumps(dkim_check(name,selected) if kind=='dkim' else record_check(kind,name,policy),default=str))
+        print(json.dumps(dns_host_lookup(name) if kind=='dns_host' else dkim_check(name,selected) if kind=='dkim' else record_check(kind,name,policy),default=str))
     elif mode=='worker-health':
         with db() as c: b=c.execute("SELECT value FROM state WHERE key='heartbeat'").fetchone()
         sys.exit(0 if b and time.time()-float(b[0])<180 else 1)

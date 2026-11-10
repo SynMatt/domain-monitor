@@ -10,6 +10,6 @@ class GenericPlaceholderTests(Tests):
         self.assertIn(b'e.g. example.com or client name',page.data)
         self.assertNotIn(b'example-company',page.data.lower())
     def test_version_and_changelog(self):
-        self.assertEqual(self.client.get('/health').json['version'],'0.10.5')
-        self.assertIn('## 0.10.5 - 2026-11-11',Path('/app/CHANGELOG.md').read_text())
+        self.assertEqual(self.client.get('/health').json['version'],'0.11.0')
+        self.assertIn('## 0.11.0 - 2026-11-11',Path('/app/CHANGELOG.md').read_text())
 if __name__=='__main__': unittest.main(verbosity=2)
