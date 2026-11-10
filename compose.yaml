@@ -1,0 +1,41 @@
+name: domain-monitor
+x-common: &common
+  image: domain-monitor:${DOMAIN_MONITOR_VERSION:-latest}
+  build: .
+  restart: unless-stopped
+  env_file: .env
+  volumes:
+    - ./data:/data
+  read_only: true
+  tmpfs:
+    - /tmp:rw,noexec,nosuid,size=128m
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  pids_limit: 100
+  mem_limit: 768m
+  cpus: 1.0
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+services:
+  web:
+    <<: *common
+    ports:
+      - "127.0.0.1:8282:8080"
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=5)"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+  worker:
+    <<: *common
+    command: [python, app.py, worker]
+    healthcheck:
+      test: [CMD, python, app.py, worker-health]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
