@@ -28,3 +28,14 @@ sudo ./scripts/restore.sh /path/to/backup
 ```
 
 Keep an off-host copy of backups. A local backup does not protect against disk or host failure.
+
+## Preserve a custom network binding
+
+Keep deployment-specific values in the untracked `.env` file:
+
+```dotenv
+HOST_BIND_IP='192.0.2.10'
+HOST_PORT='8282'
+```
+
+The repository default remains `127.0.0.1:8282`. The updater preserves `.env`, so custom bindings survive release checkouts.

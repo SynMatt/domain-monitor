@@ -1,5 +1,19 @@
 # Domain Monitor changelog
 
+## 0.10.2 - 2026-11-10
+
+### Added
+- Added environment-controlled host binding through `HOST_BIND_IP` and `HOST_PORT`.
+- Added a one-time migration path for existing script-managed installations.
+
+### Changed
+- The public default remains securely bound to `127.0.0.1:8282`, while local deployments can preserve an explicit LAN address in the untracked `.env` file.
+
+### Fixed
+- Normalized source and test permissions and Python import paths so the non-root container user can run the regression suite.
+- Normalized source and test permissions so the non-root container user can run the regression suite.
+- Enabled Git-managed updates without overwriting deployment-specific network bindings.
+
 ## 0.10.1 - 2026-11-10
 
 ### Fixed
