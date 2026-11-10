@@ -47,3 +47,15 @@ The updater also stores `DOMAIN_MONITOR_VERSION`, `HOST_BIND_IP`, and `HOST_PORT
 ## Rollback verification
 
 If an update fails, the updater now identifies the failed stage, restores the backed-up `.env` and database, clears temporary image/binding environment variables, rebuilds the previous source, and reports the restored source version, running version, image tag, and published binding.
+
+## Maintainer README release checklist
+
+After changing APP_VERSION for each release, run:
+
+```bash
+python3 scripts/update-readme-version.py
+python3 scripts/update-readme-version.py --check
+python3 tests/test_readme_release_commands.py
+```
+
+Commit the generated README with the version update and changelog after the full candidate suite passes. The README test rejects a stale explicit-version command. This is a release-time safeguard, not a background process that edits GitHub automatically.

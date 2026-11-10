@@ -1,5 +1,11 @@
 # Domain Monitor changelog
 
+## Unreleased
+
+### Added
+- Added copy/paste update, verification and backup instructions to the README.
+- Added a README command generator and a regression test matching the documented release to APP_VERSION.
+
 ## 0.10.5 - 2026-11-11
 
 ### Fixed
