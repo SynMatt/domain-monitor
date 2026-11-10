@@ -32,11 +32,13 @@ BACKUP=$DM_BACKUPS/update-${CURRENT}-to-${TARGET}-$(date -u +%Y%m%dT%H%M%SZ)
 
 rollback(){
   echo 'UPDATE FAILED: rolling back source and runtime.' >&2
+  compose stop web worker || true
   git checkout -f "$OLD_REF" || true
   cp -a "$BACKUP/environment.env" .env || true
-  cp -a "$BACKUP/monitor.sqlite3" "$DM_DB" || true
-  chown 10001:10001 "$DM_DB" || true
-  [ -z "$OLD_IMAGE" ] || docker image tag "$OLD_IMAGE" domain-monitor:rollback || true
+  cp -a "$BACKUP/monitor.sqlite3" "$DM_DB.new" || true
+  chmod 0600 "$DM_DB.new" 2>/dev/null || true
+  chown +10001:+10001 "$DM_DB.new" 2>/dev/null || true
+  mv -f "$DM_DB.new" "$DM_DB" 2>/dev/null || true
   compose build || true
   compose up -d --force-recreate --wait --wait-timeout 180 || true
   echo "Rollback backup: $BACKUP" >&2

@@ -10,15 +10,18 @@ cp -a .env "$DEST/environment.env"; chmod 0600 "$DEST/environment.env"
 cp -a compose.yaml "$DEST/compose.yaml"
 [ ! -f compose.override.yaml ] || cp -a compose.override.yaml "$DEST/compose.override.yaml"
 printf '%s\n' "$(app_version)" > "$DEST/source-version.txt"
-compose exec -T web python - "$DEST/monitor.sqlite3" <<'PY'
+python3 - "$DM_DB" "$DEST/monitor.sqlite3" <<'PY'
 import sqlite3,sys
-source=sqlite3.connect('/data/monitor.sqlite3')
-target=sqlite3.connect(sys.argv[1])
+source_path,destination_path=sys.argv[1:3]
+source=sqlite3.connect(f'file:{source_path}?mode=ro',uri=True)
+target=sqlite3.connect(destination_path)
 source.backup(target)
-print(target.execute('PRAGMA integrity_check').fetchone()[0])
+result=target.execute('PRAGMA integrity_check').fetchone()[0]
 target.close(); source.close()
+if result!='ok': raise SystemExit(f'Backup integrity check failed: {result}')
+print('Backup database integrity: ok')
 PY
-chown 0:0 "$DEST/monitor.sqlite3"; chmod 0600 "$DEST/monitor.sqlite3"
+chmod 0600 "$DEST/monitor.sqlite3"
 DOMAINS=$(db_metric 'SELECT COUNT(*) FROM domains')
 HISTORY=$(db_metric 'SELECT COUNT(*) FROM history')
 cat > "$DEST/manifest.txt" <<EOF
@@ -27,4 +30,5 @@ version=$(app_version)
 domains=$DOMAINS
 history=$HISTORY
 EOF
-printf 'Backup completed: %s\n' "$DEST"
+chmod 0600 "$DEST/manifest.txt" "$DEST/source-version.txt"
+echo "Backup completed: $DEST"
