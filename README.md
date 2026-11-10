@@ -28,12 +28,15 @@ Runtime credentials, the SQLite database, backups and domain lists are deliberat
 
 ## Quick start
 
-1. Copy `.env.example` to `.env`.
-2. Generate a random `SECRET_KEY` and a Werkzeug password hash.
-3. Create the persistent data directory with ownership for container UID/GID `10001`.
-4. Run `docker compose build`.
-5. Run the test suite from the built image.
-6. Run `docker compose up -d --wait`.
+1. Copy `.env.example` to `.env`. Keep both values inside single quotes because Werkzeug password hashes contain `$` characters that Docker Compose can otherwise interpret.
+2. Generate a random `SECRET_KEY`, for example with `openssl rand -hex 32`.
+3. Build the image with `docker compose build`.
+4. Set the administrator password with `sudo ./scripts/set-admin-password.sh`. The script generates the hash inside the built image and verifies the value loaded by the web container.
+5. Create the persistent data directory with ownership for container UID/GID `10001`.
+6. Run the test suite from the built image.
+7. Start the services with `docker compose up -d --wait`.
+
+See [`scripts/README.md`](scripts/README.md) for password-reset and verification details.
 
 Review `CHANGELOG.md` for release history.
 
@@ -62,6 +65,7 @@ This application checks public DNS configuration. Passing DNS checks does not pr
 
 | Directory | Purpose |
 |---|---|
+| [`scripts/`](scripts/README.md) | Administrative helpers for secure password setup and verification. |
 | [`static/`](static/README.md) | Browser icon assets served by Flask. |
 | [`templates/`](templates/README.md) | Jinja templates for every browser page and shared layout. |
 | [`tests/`](tests/README.md) | Regression tests covering security, validation, scheduling, dashboard behaviour, and release metadata. |
