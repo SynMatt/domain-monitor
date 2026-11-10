@@ -1,5 +1,12 @@
 # Domain Monitor changelog
 
+## 0.11.2 - 2026-11-11
+
+### Fixed
+- Removed oversized fixed-height card rows and unused metadata gaps.
+- Replaced DNS scrollbars with a single-line ellipsis; full values remain available in the tooltip and Details & history.
+- Restored compact card spacing and bottom-aligned actions without reserving empty label or stale-warning rows.
+
 ## 0.11.1 - 2026-11-11
 
 ### Changed
