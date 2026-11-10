@@ -51,7 +51,7 @@ Review `CHANGELOG.md` for release history.
 <!-- BEGIN UPDATE COMMANDS -->
 ## Updating Domain Monitor
 
-Latest documented release: **v0.11.3**
+Latest documented release: **v0.11.4**
 
 Run these commands through SSH on the application host, not in a separate development checkout. Adjust the directory if your installation uses another path.
 
@@ -73,7 +73,7 @@ sudo ./scripts/update.sh
 
 ```bash
 cd /opt/domain-monitor
-sudo ./scripts/update.sh --version 0.11.3
+sudo ./scripts/update.sh --version 0.11.4
 ```
 
 ### Verify the deployment
@@ -145,6 +145,10 @@ Domain Monitor is released under the [MIT License](LICENSE). The license permits
 
 ### DNS host detection
 
-Nameservers are collected during checks, not page loads. Provider labels are inferred. Unrecognised providers show nameserver hostnames; lookup failures show Unknown. Existing results show Not checked yet until refreshed. DNS host lookup does not affect email-health status.
+Nameservers are collected during checks, not page loads. Provider labels are inferred. Unrecognised providers show compact nameserver-domain hints; lookup failures show Unknown. Existing results show Not checked yet until refreshed. DNS host lookup does not affect email-health status.
 
 Microsoft 365 nameservers under `bdm.microsoftonline.com` display as **Microsoft**. Provider mappings also apply to cached nameserver results without new DNS requests. Provider identity is inferred from nameservers, not from the registrar or email provider.
+
+## DNS provider directory
+
+Open Settings, then Manage DNS providers. Add a nameserver suffix (for example `dns.example.net`) and a friendly provider name. Custom mappings take precedence over built-in mappings and immediately affect cached card labels. Edit names or delete mappings from the same page. Mappings are stored in the SQLite database and included in backups. No page-load DNS requests or external AI lookups are made. Full nameservers remain in Details & history. Suggested suffixes are conservative hostname hints, not verified company identities or registrable-domain calculations.

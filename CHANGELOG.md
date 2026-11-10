@@ -1,5 +1,19 @@
 # Domain Monitor changelog
 
+## 0.11.4 - 2026-11-11
+
+### Added
+- Added Settings DNS provider directory with authenticated, CSRF-protected custom mapping creation, editing and deletion.
+- Added built-in Crazy Domains and DreamIT Host nameserver mappings and an unrecognised nameserver list.
+
+### Changed
+- Custom mappings override built-in labels and apply immediately to cached results and future domains.
+- Unknown providers use a compact nameserver-domain fallback; different known providers display Multiple providers.
+- Refreshed README copy/paste update commands.
+
+### Security
+- Validated suffix boundaries and provider names; stored custom mappings in SQLite state so existing backups preserve them.
+
 ## 0.11.3 - 2026-11-11
 
 ### Added

@@ -14,3 +14,5 @@ These server-rendered templates make up the Domain Monitor web interface. `base.
 | `settings.html` | Shared Pacific/Auckland daily-check schedule configuration. |
 
 Templates must not contain organization names, customer domains, internal addresses, or production credentials.
+
+| `dns_providers.html` | Custom DNS provider mappings and unrecognised nameserver review. |

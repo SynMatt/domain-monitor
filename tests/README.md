@@ -21,3 +21,5 @@ The tests use isolated temporary SQLite databases and synthetic example domains.
 | `test_ai_disclaimer.py` | Visible AI-assisted project disclaimer, maintenance warning, independent-validation guidance, version metadata, and changelog entry. |
 
 Run the complete suite in the built container so the tests use the same pinned dependencies as production.
+
+| `test_dns_provider_settings.py` | Mapping CRUD, authentication, CSRF, suffix boundaries, cached labels, fallback and schedule preservation. |
