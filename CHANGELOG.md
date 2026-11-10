@@ -1,5 +1,14 @@
 # Domain Monitor changelog
 
+## 0.11.1 - 2026-11-11
+
+### Changed
+- Shortened the displayed label to DNS host on cards and history.
+- Aligned domain card sections using consistent metadata rows.
+
+### Fixed
+- Long nameserver lists no longer push badges, dates and buttons down relative to neighbouring cards. Nameservers remain accessible in a scrollable DNS field and in history.
+
 ## 0.11.0 - 2026-11-11
 
 ### Added
