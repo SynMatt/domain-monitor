@@ -1,5 +1,11 @@
 # Domain Monitor changelog
 
+## 0.9.2 - 2026-11-10
+
+### Added
+- Added a visible AI-assisted project disclaimer to the application footer.
+- Added clear guidance that the software is provided as-is, may contain errors or security issues, may not be actively maintained, and requires independent validation before operational use.
+
 ## 0.9.1 - 2026-11-10
 
 ### Fixed
