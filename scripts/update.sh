@@ -66,20 +66,34 @@ BACKUP=$DM_BACKUPS/update-${SOURCE_VERSION}-to-${TARGET}-$(date -u +%Y%m%dT%H%M%
 "$DM_ROOT/scripts/backup.sh" "$BACKUP"
 
 rollback(){
-  echo 'UPDATE FAILED: rolling back source and runtime.' >&2
+  local failed_step=${FAILED_STEP:-unknown}
+  echo "UPDATE FAILED during: $failed_step" >&2
+  echo 'Rolling back source, environment, database, image selection, and containers.' >&2
   compose stop web worker || true
   git checkout -f "$OLD_REF" || true
   cp -a "$BACKUP/environment.env" .env || true
+  unset DOMAIN_MONITOR_VERSION HOST_BIND_IP HOST_PORT
   cp -a "$BACKUP/monitor.sqlite3" "$DM_DB.new" || true
   chmod 0600 "$DM_DB.new" 2>/dev/null || true
   chown +10001:+10001 "$DM_DB.new" 2>/dev/null || true
   mv -f "$DM_DB.new" "$DM_DB" 2>/dev/null || true
+  compose config --quiet || true
   compose build || true
   compose up -d --force-recreate --wait --wait-timeout 180 || true
+  local rollback_source rollback_running rollback_images rollback_binding
+  rollback_source=$(app_version 2>/dev/null || true)
+  rollback_running=$(running_version 2>/dev/null || true)
+  rollback_images=$(compose config --images 2>/dev/null | sort -u || true)
+  rollback_binding=$(compose port web 8080 2>/dev/null || true)
+  echo "Rollback source version:  ${rollback_source:-unknown}" >&2
+  echo "Rollback running version: ${rollback_running:-unknown}" >&2
+  echo "Rollback image:           ${rollback_images:-unknown}" >&2
+  echo "Rollback binding:         ${rollback_binding:-unknown}" >&2
   echo "Rollback backup: $BACKUP" >&2
 }
 trap rollback ERR
 
+FAILED_STEP='check out target release'
 git checkout -f "$TARGET_TAG"
 
 # Persist the image version and deployment-specific network binding in the
@@ -102,21 +116,44 @@ path.write_text('\n'.join(lines) + '\n')
 path.chmod(0o600)
 PY
 
+FAILED_STEP='validate target Compose configuration'
 compose config --quiet
+FAILED_STEP='build target image'
 compose build --pull
+FAILED_STEP='run target regression tests'
 for test in tests/test_*.py; do
   echo "Running $test"
   compose run --rm --no-deps -e PYTHONPATH=/app web python "/app/$test"
 done
+FAILED_STEP='start updated containers'
 compose up -d --force-recreate --wait --wait-timeout 180
 
-[ "$(running_version)" = "$TARGET" ]
-[ "$(compose config --images | sort -u)" = "domain-monitor:$TARGET" ]
-[ "$(compose port web 8080)" = "$CURRENT_BIND_IP:$CURRENT_BIND_PORT" ]
+FAILED_STEP='verify running application version'
+ACTUAL_RUNNING=$(running_version)
+[ "$ACTUAL_RUNNING" = "$TARGET" ] || { echo "Expected $TARGET, got $ACTUAL_RUNNING" >&2; false; }
+
+FAILED_STEP='verify configured image tag'
+ACTUAL_IMAGES=$(compose config --images | sort -u)
+[ "$ACTUAL_IMAGES" = "domain-monitor:$TARGET" ] || { printf 'Unexpected configured images:
+%s
+' "$ACTUAL_IMAGES" >&2; false; }
+
+FAILED_STEP='verify published binding'
+ACTUAL_BINDING=$(compose port web 8080)
+[ "$ACTUAL_BINDING" = "$CURRENT_BIND_IP:$CURRENT_BIND_PORT" ] || { echo "Expected $CURRENT_BIND_IP:$CURRENT_BIND_PORT, got $ACTUAL_BINDING" >&2; false; }
+
+FAILED_STEP='verify database integrity'
 integrity_check
-[ "$(db_metric 'SELECT COUNT(*) FROM domains')" = "$DOMAINS" ]
-[ "$(db_metric 'SELECT COUNT(*) FROM history')" -ge "$HISTORY" ]
+
+FAILED_STEP='verify domain count'
+ACTUAL_DOMAINS=$(db_metric 'SELECT COUNT(*) FROM domains')
+[ "$ACTUAL_DOMAINS" = "$DOMAINS" ] || { echo "Expected $DOMAINS domains, got $ACTUAL_DOMAINS" >&2; false; }
+
+FAILED_STEP='verify history count'
+ACTUAL_HISTORY=$(db_metric 'SELECT COUNT(*) FROM history')
+[ "$ACTUAL_HISTORY" -ge "$HISTORY" ] || { echo "Expected history >= $HISTORY, got $ACTUAL_HISTORY" >&2; false; }
 trap - ERR
+unset FAILED_STEP
 
 printf 'Update completed: source %s, running %s -> %s\n' "$SOURCE_VERSION" "$RUNNING_VERSION" "$TARGET"
 printf 'Binding preserved: %s:%s\nBackup: %s\n' "$CURRENT_BIND_IP" "$CURRENT_BIND_PORT" "$BACKUP"
