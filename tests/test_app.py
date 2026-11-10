@@ -31,7 +31,7 @@ class Tests(unittest.TestCase):
         self.auth(); self.assertEqual(self.client.post('/new',data={}).status_code,400)
     def test_domains(self):
         self.assertEqual(m.domain_name('Example.COM.'),'example.com')
-        for bad in ('https://example.com','127.0.9.2','-bad.com','a..com','a@b.invalid'):
+        for bad in ('https://example.com','127.0.9.3','-bad.com','a..com','a@b.invalid'):
             with self.assertRaises(ValueError): m.domain_name(bad)
     def test_selectors(self):
         self.assertEqual(m.selectors('Selector1, selector2 selector1'),'selector1,selector2')

@@ -72,4 +72,4 @@ Every release must update `APP_VERSION`, the displayed version, `CHANGELOG.md`, 
 
 ## License
 
-No open-source license has been selected yet. Until a license is added, copyright law reserves reuse and redistribution rights.
+Domain Monitor is released under the [MIT License](LICENSE). The license permits use, copying, modification, distribution, sublicensing, and sale, subject to retaining the copyright and permission notice. The software is provided as-is without warranty.
