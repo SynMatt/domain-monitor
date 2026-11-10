@@ -38,6 +38,13 @@ Runtime credentials, the SQLite database, backups and domain lists are deliberat
 
 See [`scripts/README.md`](scripts/README.md) for password-reset and verification details.
 
+The default listener is `127.0.0.1:8282`. To bind to a specific LAN address without editing tracked files, add these values to `.env`:
+
+```dotenv
+HOST_BIND_IP='192.0.2.10'
+HOST_PORT='8282'
+```
+
 Review `CHANGELOG.md` for release history.
 
 ## Updating

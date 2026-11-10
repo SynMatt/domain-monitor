@@ -51,7 +51,7 @@ export DOMAIN_MONITOR_VERSION=$TARGET
 compose build --pull
 for test in tests/test_*.py; do
   echo "Running $test"
-  compose run --rm --no-deps web python "/app/$test"
+  compose run --rm --no-deps -e PYTHONPATH=/app web python "/app/$test"
 done
 compose up -d --force-recreate --wait --wait-timeout 180
 [ "$(running_version)" = "$TARGET" ]

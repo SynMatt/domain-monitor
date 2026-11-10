@@ -23,7 +23,7 @@ services:
   web:
     <<: *common
     ports:
-      - "127.0.0.1:8282:8080"
+      - "${HOST_BIND_IP:-127.0.0.1}:${HOST_PORT:-8282}:8080"
     healthcheck:
       test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=5)"]
       interval: 15s
