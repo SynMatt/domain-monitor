@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% block body %}
+<section class="panel changelog">
+<h2>Change log</h2>
+<p class="muted">Current version: {{version}}</p>
+{% for release in releases %}
+<article class="release">
+<h2>Version {{release.version}} <small>{{release.date}}</small></h2>
+{% for section in release.sections %}
+<h3>{{section.name}}</h3>
+<ul>{% for item in section['items'] %}<li>{{item}}</li>{% endfor %}</ul>
+{% endfor %}
+</article>
+{% endfor %}
+</section>
+{% endblock %}
