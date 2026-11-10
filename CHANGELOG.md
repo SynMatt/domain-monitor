@@ -1,13 +1,25 @@
 # Domain Monitor changelog
 
-## 0.8.3 - 2026-11-10
+## 0.9.1 - 2026-11-10
+
+### Fixed
+- Replaced the organization-specific dashboard search example with the generic placeholder `example.com or client name`.
+
+### Security
+- Removed an organization reference from the production user interface and public-source workflow.
+
+## 0.9.0 - 2026-11-10
 
 ### Added
-- Added a complete repository structure reference describing every tracked source file.
-- Added dedicated documentation for the `static`, `templates`, and `tests` directories.
+- Added a Settings dropdown for selecting the timezone used by daily scheduling and displayed timestamps.
+- Added a curated list of common IANA timezones, including New Zealand, Australia, Asia, Europe, United States, and UTC options.
 
 ### Changed
-- Improved public repository navigation and contributor guidance.
+- Changing the timezone now recalculates the next scheduled check for every domain using the selected local time.
+- Daylight-saving transitions are handled by the selected timezone rather than being fixed to Pacific/Auckland.
+
+### Security
+- Timezone values are restricted to a server-defined allow-list instead of accepting arbitrary user input.
 
 ## 0.8.2 - 2026-11-10
 
