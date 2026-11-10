@@ -4,7 +4,7 @@ from test_app import Tests
 
 class UpdaterRollbackTests(Tests):
     def test_version(self):
-        self.assertEqual(self.client.get('/health').json['version'],'0.11.2')
+        self.assertEqual(self.client.get('/health').json['version'],'0.11.3')
 
     def test_rollback_clears_temporary_environment(self):
         text=Path('/app/scripts/update.sh').read_text()

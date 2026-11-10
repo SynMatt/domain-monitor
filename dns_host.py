@@ -1,5 +1,5 @@
 """Nameserver metadata; not an email-health signal."""
-PROVIDERS={'cloudflare.com':'Cloudflare','azure-dns.com':'Microsoft Azure DNS','azure-dns.net':'Microsoft Azure DNS','azure-dns.org':'Microsoft Azure DNS','azure-dns.info':'Microsoft Azure DNS','domaincontrol.com':'GoDaddy','digitalocean.com':'DigitalOcean','dnsimple.com':'DNSimple'}
+PROVIDERS = {'cloudflare.com': 'Cloudflare', 'azure-dns.com': 'Microsoft Azure DNS', 'azure-dns.net': 'Microsoft Azure DNS', 'azure-dns.org': 'Microsoft Azure DNS', 'azure-dns.info': 'Microsoft Azure DNS', 'domaincontrol.com': 'GoDaddy', 'digitalocean.com': 'DigitalOcean', 'dnsimple.com': 'DNSimple', 'bdm.microsoftonline.com': 'Microsoft'}
 def provider_for(names):
     labels=[next((v for k,v in PROVIDERS.items() if n.lower().rstrip('.')==k or n.lower().rstrip('.').endswith('.'+k)),None) for n in names]
     return labels[0] if labels and None not in labels and len(set(labels))==1 else None
@@ -17,4 +17,4 @@ def label(data):
     if not isinstance(data,dict) or 'dns_host' not in data: return 'Not checked yet'
     host=data.get('dns_host')
     if not isinstance(host,dict) or host.get('lookup_status')!='ok': return 'Unknown'
-    return host.get('provider') or ', '.join(host.get('nameservers',[])) or 'Unknown'
+    return provider_for(host.get('nameservers', [])) or host.get('provider') or ', '.join(host.get('nameservers', [])) or 'Unknown'

@@ -51,7 +51,7 @@ Review `CHANGELOG.md` for release history.
 <!-- BEGIN UPDATE COMMANDS -->
 ## Updating Domain Monitor
 
-Latest documented release: **v0.11.2**
+Latest documented release: **v0.11.3**
 
 Run these commands through SSH on the application host, not in a separate development checkout. Adjust the directory if your installation uses another path.
 
@@ -73,7 +73,7 @@ sudo ./scripts/update.sh
 
 ```bash
 cd /opt/domain-monitor
-sudo ./scripts/update.sh --version 0.11.2
+sudo ./scripts/update.sh --version 0.11.3
 ```
 
 ### Verify the deployment
@@ -146,3 +146,5 @@ Domain Monitor is released under the [MIT License](LICENSE). The license permits
 ### DNS host detection
 
 Nameservers are collected during checks, not page loads. Provider labels are inferred. Unrecognised providers show nameserver hostnames; lookup failures show Unknown. Existing results show Not checked yet until refreshed. DNS host lookup does not affect email-health status.
+
+Microsoft 365 nameservers under `bdm.microsoftonline.com` display as **Microsoft**. Provider mappings also apply to cached nameserver results without new DNS requests. Provider identity is inferred from nameservers, not from the registrar or email provider.
