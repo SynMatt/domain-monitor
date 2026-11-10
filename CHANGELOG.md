@@ -1,5 +1,14 @@
 # Domain Monitor changelog
 
+## 0.9.3 - 2026-11-10
+
+### Added
+- Added the MIT License with copyright attributed to `mx5matt`.
+- Added a direct license link and reuse summary to the project README.
+
+### Changed
+- Updated the public source version to 0.9.3 for the licensing release.
+
 ## 0.9.2 - 2026-11-10
 
 ### Added
