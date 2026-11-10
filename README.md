@@ -2,6 +2,12 @@
 
 A self-hosted dashboard for scheduled SPF, DKIM and DMARC DNS health checks.
 
+## AI-assisted project disclaimer
+
+This software was developed with substantial AI assistance. It is provided **as-is**, may contain errors or security issues, and may not be actively maintained.
+
+Review the source code, test it in a non-production environment, protect credentials and backups, and independently validate all results before relying on the software. No warranty or support commitment is provided.
+
 ## Features
 
 - Password-protected web dashboard
