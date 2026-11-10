@@ -31,7 +31,7 @@ class Tests(unittest.TestCase):
         self.auth(); self.assertEqual(self.client.post('/new',data={}).status_code,400)
     def test_domains(self):
         self.assertEqual(m.domain_name('Example.COM.'),'example.com')
-        for bad in ('https://example.com','127.0.0.1','-bad.com','a..com','a@b.invalid'):
+        for bad in ('https://example.com','127.0.9.1','-bad.com','a..com','a@b.invalid'):
             with self.assertRaises(ValueError): m.domain_name(bad)
     def test_selectors(self):
         self.assertEqual(m.selectors('Selector1, selector2 selector1'),'selector1,selector2')
@@ -82,21 +82,21 @@ class Tests(unittest.TestCase):
         self.assertEqual(row['manual_pending'],1)
     def test_global_schedule(self):
         self.auth(); self.add()
-        self.assertEqual(self.post('/settings',daily_time='06:30').status_code,302)
+        self.assertEqual(self.post('/settings',daily_time='06:30',timezone='Pacific/Auckland').status_code,302)
         with m.db() as c:
             self.assertEqual(m.get_clock(c),'06:30')
             row=c.execute('SELECT * FROM domains').fetchone()
-        local=m.datetime.fromtimestamp(row['due'],m.NZ)
+        local=m.datetime.fromtimestamp(row['due'],m.ZoneInfo('Pacific/Auckland'))
         self.assertEqual((local.hour,local.minute),(6,30))
         self.assertEqual(self.client.get('/settings').status_code,200)
     def test_dst_schedule(self):
         for date,expected in [('2026-09-27T00:00:00',3),('2026-04-05T00:00:00',2)]:
-            now=m.datetime.fromisoformat(date).replace(tzinfo=m.NZ).timestamp()
+            now=m.datetime.fromisoformat(date).replace(tzinfo=m.ZoneInfo('Pacific/Auckland')).timestamp()
             first=m.next_run(now,'02:30')
-            local=m.datetime.fromtimestamp(first,m.NZ)
+            local=m.datetime.fromtimestamp(first,m.ZoneInfo('Pacific/Auckland'))
             self.assertEqual(local.hour,expected)
             second=m.next_run(first,'02:30')
-            self.assertGreater(m.datetime.fromtimestamp(second,m.NZ).date(),local.date())
+            self.assertGreater(m.datetime.fromtimestamp(second,m.ZoneInfo('Pacific/Auckland')).date(),local.date())
     def test_time_validation(self):
         for value in ('24:00','6:30','12:60',''):
             with self.assertRaises(ValueError): m.validate_time(value)

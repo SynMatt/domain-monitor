@@ -14,4 +14,8 @@ The tests use isolated temporary SQLite databases and synthetic example domains.
 | `test_search_sort.py` | Search by domain or label, severity ordering, combined filters, invalid-sort fallback, and result counts. |
 | `test_status_counters.py` | Pass/Warn/Fail/Unknown totals, empty dashboards, and stale-result classification. |
 
+| `test_timezone_settings.py` | Timezone allow-list validation, Settings persistence, timezone-aware scheduling, daylight-saving behaviour, version metadata, and changelog entry. |
+
+| `test_generic_placeholder.py` | Generic search-placeholder text, removal of organization-specific UI examples, version metadata, and changelog entry. |
+
 Run the complete suite in the built container so the tests use the same pinned dependencies as production.

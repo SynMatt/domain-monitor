@@ -2,13 +2,47 @@ import os,sys,time,json,re,base64,sqlite3,secrets,subprocess,logging
 from contextlib import contextmanager
 from datetime import datetime,timezone,timedelta
 from zoneinfo import ZoneInfo
-NZ=ZoneInfo("Pacific/Auckland")
+TIMEZONES={
+    'Pacific/Auckland':'Auckland (New Zealand)',
+    'Pacific/Chatham':'Chatham Islands (New Zealand)',
+    'Australia/Sydney':'Sydney (Australia)',
+    'Australia/Melbourne':'Melbourne (Australia)',
+    'Australia/Brisbane':'Brisbane (Australia)',
+    'Australia/Perth':'Perth (Australia)',
+    'Asia/Singapore':'Singapore',
+    'Asia/Tokyo':'Tokyo (Japan)',
+    'Asia/Kolkata':'India',
+    'Europe/London':'London (United Kingdom)',
+    'Europe/Paris':'Central Europe',
+    'America/New_York':'New York (United States)',
+    'America/Chicago':'Chicago (United States)',
+    'America/Denver':'Denver (United States)',
+    'America/Los_Angeles':'Los Angeles (United States)',
+    'UTC':'UTC',
+}
+DEFAULT_TIMEZONE='Pacific/Auckland'
+
+def validate_timezone(value):
+    if value not in TIMEZONES:
+        raise ValueError('Select a supported timezone.')
+    return value
+
+def get_timezone(c):
+    row=c.execute("SELECT value FROM state WHERE key='timezone'").fetchone()
+    value=row[0] if row else DEFAULT_TIMEZONE
+    return value if value in TIMEZONES else DEFAULT_TIMEZONE
+
+def selected_zone(c=None):
+    if c is not None:
+        return ZoneInfo(get_timezone(c))
+    with db() as connection:
+        return ZoneInfo(get_timezone(connection))
 from flask import Flask,request,session,redirect,render_template,abort,flash
 from werkzeug.security import check_password_hash
 DATA=os.environ.get('DATA_DIR','/data')
 DB=DATA+'/monitor.sqlite3'
 logging.basicConfig(level=logging.INFO)
-APP_VERSION='0.8.3'
+APP_VERSION='0.9.1'
 @contextmanager
 def db():
     c=sqlite3.connect(DB,timeout=30); c.row_factory=sqlite3.Row
@@ -25,19 +59,20 @@ def validate_time(value):
         raise ValueError('Enter a daily check time in HH:MM format.')
     return value
 
-def next_run(now,clock):
+def next_run(now,clock,zone=None):
     validate_time(clock)
+    zone=zone or selected_zone()
     hour,minute=map(int,clock.split(':'))
-    today=datetime.fromtimestamp(now,NZ).date()
+    today=datetime.fromtimestamp(now,zone).date()
     for offset in range(4):
         day=today+timedelta(days=offset)
         wall=datetime(day.year,day.month,day.day,hour,minute)
         # A nonexistent spring-forward time moves to the first valid minute.
         # Ambiguous autumn times use the first occurrence, once per local day.
         for adjustment in range(181):
-            candidate=(wall+timedelta(minutes=adjustment)).replace(tzinfo=NZ,fold=0)
+            candidate=(wall+timedelta(minutes=adjustment)).replace(tzinfo=zone,fold=0)
             epoch=candidate.timestamp()
-            if datetime.fromtimestamp(epoch,NZ).replace(tzinfo=None)==candidate.replace(tzinfo=None):
+            if datetime.fromtimestamp(epoch,zone).replace(tzinfo=None)==candidate.replace(tzinfo=None):
                 if epoch>now: return epoch
                 break
     raise ValueError('Could not determine next daily run.')
@@ -60,8 +95,9 @@ CREATE TABLE IF NOT EXISTS attempts(at REAL NOT NULL);
         if 'manual_pending' not in columns:
             c.execute('ALTER TABLE domains ADD COLUMN manual_pending INTEGER NOT NULL DEFAULT 0')
         c.execute("INSERT OR IGNORE INTO state VALUES('daily_time','03:00')")
+        c.execute("INSERT OR IGNORE INTO state VALUES('timezone',?)",(DEFAULT_TIMEZONE,))
         if not c.execute("SELECT 1 FROM state WHERE key='fixed_schedule_v1'").fetchone():
-            due=next_run(time.time(),get_clock(c))
+            due=next_run(time.time(),get_clock(c),selected_zone(c))
             c.execute('UPDATE domains SET due=?,manual_pending=CASE WHEN checked IS NULL THEN 1 ELSE 0 END',(due,))
             c.execute("INSERT INTO state VALUES('fixed_schedule_v1','1')")
 def domain_name(s):
@@ -189,7 +225,7 @@ def worker():
                 data['trigger']='scheduled' if scheduled else 'manual / new or edited domain'
                 now=time.time(); encoded=json.dumps(data)
                 with db() as c:
-                    due=next_run(now,get_clock(c)) if scheduled else row['due']
+                    due=next_run(now,get_clock(c),selected_zone(c)) if scheduled else row['due']
                     updated=c.execute('UPDATE domains SET result=?,checked=?,due=?,manual_pending=0 WHERE id=? AND revision=?',(encoded,now,due,row['id'],row['revision'])).rowcount
                     if updated:
                         c.execute('INSERT INTO history(domain_id,checked,result) VALUES(?,?,?)',(row['id'],now,encoded))
@@ -202,7 +238,7 @@ app=Flask(__name__)
 app.secret_key=os.environ.get('SECRET_KEY','')
 app.config.update(MAX_CONTENT_LENGTH=16384,SESSION_COOKIE_HTTPONLY=True,SESSION_COOKIE_SAMESITE='Strict',PERMANENT_SESSION_LIFETIME=timedelta(hours=8))
 @app.template_filter('stamp')
-def stamp(v): return datetime.fromtimestamp(v,NZ).strftime('%d %b %Y %H:%M %Z') if v else 'Never'
+def stamp(v): return datetime.fromtimestamp(v,selected_zone()).strftime('%d %b %Y %H:%M %Z') if v else 'Never'
 @app.before_request
 def protect():
     if request.endpoint=='health': return
@@ -240,6 +276,7 @@ def index():
         rows=c.execute('SELECT * FROM domains ORDER BY domain').fetchall()
         b=c.execute("SELECT value FROM state WHERE key='heartbeat'").fetchone()
         clock=get_clock(c)
+        timezone_name=get_timezone(c)
     domains=[]; now=time.time()
     for r in rows:
         d=dict(r); d['data']=json.loads(r['result']) if r['result'] else None
@@ -284,7 +321,7 @@ def index():
         'next_due':lambda d:(d['due'] or float('inf'),d['domain'])
     }
     filtered_domains=sorted(filtered_domains,key=sort_keys[sort_mode])
-    return render_template('index.html',domains=domains,filtered_domains=filtered_domains,worker_ok=bool(b and now-float(b[0])<180),clock=clock,summary=summary,filter_kind=filter_kind,filter_status=filter_status,search_query=search_query,sort_mode=sort_mode)
+    return render_template('index.html',domains=domains,filtered_domains=filtered_domains,worker_ok=bool(b and now-float(b[0])<180),clock=clock,timezone_name=timezone_name,summary=summary,filter_kind=filter_kind,filter_status=filter_status,search_query=search_query,sort_mode=sort_mode)
 @app.route('/new',methods=['GET','POST'])
 @app.route('/domain/<int:ident>/edit',methods=['GET','POST'])
 def edit(ident=None):
@@ -303,7 +340,7 @@ def edit(ident=None):
                     c.execute('UPDATE domains SET domain=?,label=?,selectors=?,policy=?,revision=revision+1,manual_pending=1,checked=NULL,result=NULL WHERE id=?',(name,form['label'],selected,form['policy'],ident))
                 else:
                     if c.execute('SELECT COUNT(*) FROM domains').fetchone()[0]>=500: raise ValueError('Initial version limit: 500 domains.')
-                    c.execute('INSERT INTO domains(domain,label,selectors,policy,due,manual_pending) VALUES(?,?,?,?,?,1)',(name,form['label'],selected,form['policy'],next_run(time.time(),get_clock(c))))
+                    c.execute('INSERT INTO domains(domain,label,selectors,policy,due,manual_pending) VALUES(?,?,?,?,?,1)',(name,form['label'],selected,form['policy'],next_run(time.time(),get_clock(c),selected_zone(c))))
             flash('Saved. Check queued.'); return redirect('/')
         except (ValueError,sqlite3.IntegrityError) as e: flash('Domain already exists.' if isinstance(e,sqlite3.IntegrityError) else str(e))
     return render_template('edit.html',form=form,ident=ident)
@@ -321,15 +358,20 @@ def settings():
     if request.method=='POST':
         try:
             clock=validate_time(request.form.get('daily_time',''))
+            timezone_name=validate_timezone(request.form.get('timezone',''))
+            zone=ZoneInfo(timezone_name)
             with db() as c:
                 c.execute('BEGIN IMMEDIATE')
                 c.execute("INSERT OR REPLACE INTO state VALUES('daily_time',?)",(clock,))
-                c.execute('UPDATE domains SET due=?,revision=revision+1',(next_run(time.time(),clock),))
-            flash('Daily check time saved for all domains. Manual checks do not change this schedule.')
+                c.execute("INSERT OR REPLACE INTO state VALUES('timezone',?)",(timezone_name,))
+                c.execute('UPDATE domains SET due=?,revision=revision+1',(next_run(time.time(),clock,zone),))
+            flash('Daily check time and timezone saved for all domains. Manual checks do not change this schedule.')
             return redirect('/')
         except ValueError as e: flash(str(e))
-    with db() as c: clock=get_clock(c)
-    return render_template('settings.html',clock=clock)
+    with db() as c:
+        clock=get_clock(c)
+        timezone_name=get_timezone(c)
+    return render_template('settings.html',clock=clock,timezone_name=timezone_name,timezones=TIMEZONES)
 
 @app.get('/domain/<int:ident>')
 def detail(ident):
@@ -378,7 +420,7 @@ def bulk_add():
                 skipped=len(pending)-len(new)+repeated
                 if len(existing)+len(new)>500:
                     raise ValueError('Import would exceed the 500-domain limit. Nothing imported.')
-                due=next_run(time.time(),get_clock(c))
+                due=next_run(time.time(),get_clock(c),selected_zone(c))
                 c.executemany('INSERT INTO domains(domain,label,selectors,policy,due,manual_pending) VALUES(?,?,?,?,?,1)',
                     [(name,label,default_selectors,policy,due) for name,label in new])
             summary=f'Added {len(new)} domains; skipped {skipped} duplicates. Existing domains were not changed. Initial checks queued; daily schedule preserved.'
