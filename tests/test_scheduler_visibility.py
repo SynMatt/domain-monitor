@@ -20,6 +20,6 @@ class SchedulerVisibilityTests(Tests):
         self.assertIn(b'Scheduler not reporting',page.data)
         self.assertIn(b'worker heartbeat',page.data)
     def test_version_and_changelog(self):
-        self.assertEqual(self.client.get('/health').json['version'],'0.10.3')
-        self.assertIn('## 0.10.3 - 2026-11-10',Path('/app/CHANGELOG.md').read_text())
+        self.assertEqual(self.client.get('/health').json['version'],'0.10.4')
+        self.assertIn('## 0.10.4 - 2026-11-11',Path('/app/CHANGELOG.md').read_text())
 if __name__=='__main__': unittest.main(verbosity=2)

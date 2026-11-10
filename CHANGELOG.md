@@ -1,5 +1,16 @@
 # Domain Monitor changelog
 
+## 0.10.4 - 2026-11-11
+
+### Changed
+- Update failures now report the exact build, test, startup, or verification step that failed.
+- Rollback reports the restored source version, running version, image tag, and published binding.
+
+### Fixed
+- Cleared exported image and binding variables before rollback so restored `.env` values control the rollback image and network binding.
+- Restored `.env` before rebuilding the previous release, preventing old source from being mislabeled with the failed target version.
+- Added explicit rollback verification output for source/container/image consistency.
+
 ## 0.10.3 - 2026-11-10
 
 ### Changed

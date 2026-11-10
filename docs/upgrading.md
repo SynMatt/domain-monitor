@@ -44,3 +44,6 @@ The repository default remains `127.0.0.1:8282`. The updater preserves `.env`, s
 `update.sh --check` compares three values: the checked-out source version, the running web-container version, and the latest stable Git tag. If the source is current but the container is stale, the updater rebuilds and recreates the services instead of incorrectly reporting that the installation is current.
 
 The updater also stores `DOMAIN_MONITOR_VERSION`, `HOST_BIND_IP`, and `HOST_PORT` in the untracked `.env` file so image selection and network binding persist across releases.
+## Rollback verification
+
+If an update fails, the updater now identifies the failed stage, restores the backed-up `.env` and database, clears temporary image/binding environment variables, rebuilds the previous source, and reports the restored source version, running version, image tag, and published binding.
