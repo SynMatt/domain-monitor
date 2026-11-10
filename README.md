@@ -40,6 +40,17 @@ See [`scripts/README.md`](scripts/README.md) for password-reset and verification
 
 Review `CHANGELOG.md` for release history.
 
+## Updating
+
+Check for and install stable releases with:
+
+```bash
+sudo ./scripts/update.sh --check
+sudo ./scripts/update.sh
+```
+
+See [`docs/upgrading.md`](docs/upgrading.md) for explicit-version updates, backup, restore, verification, and rollback behaviour.
+
 ## Scope
 
 This application checks public DNS configuration. Passing DNS checks does not prove that outbound messages are being signed or that real messages achieve DMARC alignment.
