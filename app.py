@@ -42,7 +42,7 @@ from werkzeug.security import check_password_hash
 DATA=os.environ.get('DATA_DIR','/data')
 DB=DATA+'/monitor.sqlite3'
 logging.basicConfig(level=logging.INFO)
-APP_VERSION='0.11.3'
+APP_VERSION='0.11.4'
 @contextmanager
 def db():
     c=sqlite3.connect(DB,timeout=30); c.row_factory=sqlite3.Row
@@ -461,6 +461,9 @@ def changelog():
         elif release and section and line.startswith('- '):
             section['items'].append(line[2:])
     return render_template('changelog.html',releases=releases,version=APP_VERSION)
+
+from dns_providers import register as register_dns_providers
+register_dns_providers(sys.modules[__name__])
 
 if __name__=='__main__':
     mode=sys.argv[1]

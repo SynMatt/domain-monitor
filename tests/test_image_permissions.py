@@ -5,7 +5,7 @@ from test_app import Tests
 
 class ImagePermissionTests(Tests):
     def test_version(self):
-        self.assertEqual(self.client.get('/health').json['version'],'0.11.3')
+        self.assertEqual(self.client.get('/health').json['version'],'0.11.4')
 
     def test_test_files_are_world_readable(self):
         for path in Path('/app/tests').glob('test_*.py'):

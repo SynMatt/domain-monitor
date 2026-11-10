@@ -1,0 +1,19 @@
+{% extends 'base.html' %}{% block body %}
+<section class="panel"><h2>DNS providers</h2>
+<p>Match nameserver suffixes to friendly provider names. Custom mappings override built-in mappings and apply to existing and future domains. This does not change DNS, email-health results, history records or the schedule.</p>
+<p><a href="/settings">Back to Settings</a></p>
+<h3>Add a provider</h3>
+<form method="post"><input type="hidden" name="csrf" value="{{session.csrf}}"><input type="hidden" name="action" value="add">
+<label for="suffix">Nameserver suffix</label><input id="suffix" name="suffix" required maxlength="253" placeholder="dns.example.net">
+<label for="name">Provider display name</label><input id="name" name="name" required maxlength="80" placeholder="Example DNS">
+<p><button>Add mapping</button></p></form></section>
+<section class="panel"><h2>Custom mappings</h2>
+{% for suffix,name in mappings %}<article class="panel"><h3 style="overflow-wrap:anywhere">{{suffix}}</h3>
+<form method="post"><input type="hidden" name="csrf" value="{{session.csrf}}"><input type="hidden" name="action" value="edit"><input type="hidden" name="suffix" value="{{suffix}}">
+<label for="provider-{{loop.index}}">Display name</label><input id="provider-{{loop.index}}" name="name" value="{{name}}" required maxlength="80"><p><button>Save name</button></p></form>
+<details><summary>Delete mapping</summary><form method="post"><input type="hidden" name="csrf" value="{{session.csrf}}"><input type="hidden" name="action" value="delete"><input type="hidden" name="suffix" value="{{suffix}}"><label for="delete-{{loop.index}}">Type DELETE to confirm</label><input id="delete-{{loop.index}}" name="confirm" required pattern="DELETE"><p><button class="danger">Delete mapping</button></p></form></details></article>
+{% else %}<p>No custom mappings yet.</p>{% endfor %}</section>
+<section class="panel"><h2>Unrecognised nameservers</h2><p>From cached results only. Suggested suffixes remove conventional ns/ns1 prefixes; review the suffix before adding a mapping.</p>
+{% for ns,suffix,count in unknown %}<p style="overflow-wrap:anywhere"><strong>{{ns}}</strong><br>Suggested suffix: {{suffix}} · {{count}} domain(s)</p>{% else %}<p>No unrecognised nameservers in completed results.</p>{% endfor %}</section>
+<details class="panel"><summary>Built-in provider directory</summary>{% for suffix,name in builtins %}<p style="overflow-wrap:anywhere">{{suffix}}: {{name}}</p>{% endfor %}</details>
+{% endblock %}
