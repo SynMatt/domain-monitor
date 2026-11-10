@@ -1,5 +1,19 @@
 # Domain Monitor changelog
 
+## 0.10.0 - 2026-11-10
+
+### Added
+- Added supported `update.sh`, `backup.sh`, and `restore.sh` commands.
+- Added stable-release checks, explicit-version updates, regression testing, database verification, and automatic rollback.
+- Added upgrading and recovery documentation.
+
+### Changed
+- Standardized public installations around a clean Git clone with runtime credentials, database, backups, and local overrides outside tracked source.
+
+### Security
+- Updates stop when tracked files contain local modifications.
+- Every update creates a consistent SQLite backup and validates integrity and record counts before completion.
+
 ## 0.9.4 - 2026-11-10
 
 ### Added

@@ -12,3 +12,5 @@ CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--workers", "1", "--threads", "4", "
 COPY tests ./tests
 COPY .env.example README.md ./
 COPY scripts ./scripts
+COPY docs ./docs
+COPY README.md .
