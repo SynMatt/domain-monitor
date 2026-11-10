@@ -1,5 +1,19 @@
 # Domain Monitor changelog
 
+## 0.9.4 - 2026-11-10
+
+### Added
+- Added `scripts/set-admin-password.sh` for secure administrator password setup, environment backup, container recreation, and in-container password verification.
+- Added documentation for administrator password setup and recovery.
+
+### Fixed
+- Fixed public deployment guidance so Werkzeug password hashes containing `$` characters are stored inside single quotes in `.env`.
+- Added verification against the password hash actually loaded by the running web container.
+
+### Security
+- Password input remains hidden and is never written to shell history or application logs.
+- The real `.env`, administrator password, generated hash, and session key remain excluded from Git.
+
 ## 0.9.3 - 2026-11-10
 
 ### Added

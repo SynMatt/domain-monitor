@@ -27,6 +27,6 @@ class SearchSortTests(Tests):
         page=self.client.get('/?sort=bad')
         self.assertEqual(page.status_code,200); self.assertIn(b'one.example',page.data)
     def test_version_and_changelog(self):
-        self.assertEqual(self.client.get('/health').json['version'],'0.9.3')
-        self.assertIn('## 0.9.3 - 2026-11-10',Path('/app/CHANGELOG.md').read_text())
+        self.assertEqual(self.client.get('/health').json['version'],'0.9.4')
+        self.assertIn('## 0.9.4 - 2026-11-10',Path('/app/CHANGELOG.md').read_text())
 if __name__=='__main__': unittest.main(verbosity=2)
