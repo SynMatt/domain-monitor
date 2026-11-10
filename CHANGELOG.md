@@ -1,10 +1,16 @@
 # Domain Monitor changelog
 
-## Unreleased
+## 0.11.0 - 2026-11-11
 
 ### Added
 - Added copy/paste update, verification and backup instructions to the README.
 - Added a README command generator and a regression test matching the documented release to APP_VERSION.
+- Added detected DNS host to cards and nameserver evidence to history.
+- Added cached NS lookup during manual and scheduled checks, conservative provider matching, and hostname fallback.
+
+### Changed
+- DNS host lookup failures do not affect SPF, DKIM or DMARC health.
+- Refreshed README update commands for 0.11.0.
 
 ## 0.10.5 - 2026-11-11
 

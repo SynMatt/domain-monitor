@@ -4,6 +4,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY app.py .
+COPY dns_host.py .
 COPY CHANGELOG.md .
 COPY templates ./templates
 COPY static ./static
