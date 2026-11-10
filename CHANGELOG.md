@@ -1,5 +1,16 @@
 # Domain Monitor changelog
 
+## 0.10.3 - 2026-11-10
+
+### Changed
+- Update checks now report the source version, running container version, and latest stable release separately.
+- The updater rebuilds and recreates containers when checked-out source and running container versions drift.
+
+### Fixed
+- Persisted `DOMAIN_MONITOR_VERSION` in `.env` so Compose no longer falls back to `domain-monitor:latest`.
+- Preserved the active host binding and port in `.env` during updates.
+- Added post-update verification for the image tag, running version, published binding, database integrity, domain count, and history count.
+
 ## 0.10.2 - 2026-11-10
 
 ### Added

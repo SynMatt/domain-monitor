@@ -5,7 +5,7 @@ import app as m
 
 class CounterLayoutTests(Tests):
     def test_version_and_layout(self):
-        self.assertEqual(self.client.get('/health').json['version'],'0.10.2')
+        self.assertEqual(self.client.get('/health').json['version'],'0.10.3')
         css=Path('/app/templates/base.html').read_text()
         self.assertIn('grid-template-columns:repeat(3,minmax(0,1fr))',css)
         self.assertIn('padding:12px 14px',css)
@@ -14,7 +14,7 @@ class CounterLayoutTests(Tests):
         self.assertIn('@media(max-width:700px)',css)
     def test_changelog_entry(self):
         text=Path('/app/CHANGELOG.md').read_text()
-        self.assertIn('## 0.10.2 - 2026-11-10',text)
+        self.assertIn('## 0.10.3 - 2026-11-10',text)
         self.assertIn('### Fixed',text)
 
 if __name__=='__main__': unittest.main(verbosity=2)
