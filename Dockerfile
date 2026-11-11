@@ -5,6 +5,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY app.py .
 COPY dns_host.py .
+COPY domain_expiry.py .
 COPY dns_providers.py .
 COPY CHANGELOG.md .
 COPY templates ./templates

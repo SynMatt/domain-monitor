@@ -4,7 +4,7 @@ from test_app import Tests
 
 class UpdaterDriftTests(Tests):
     def test_version(self):
-        self.assertEqual(self.client.get('/health').json['version'], '0.12.3')
+        self.assertEqual(self.client.get('/health').json['version'], '0.13.0')
 
     def test_update_compares_source_running_and_target(self):
         text=Path('/app/scripts/update.sh').read_text()

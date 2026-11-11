@@ -42,7 +42,7 @@ from werkzeug.security import check_password_hash
 DATA=os.environ.get('DATA_DIR','/data')
 DB=DATA+'/monitor.sqlite3'
 logging.basicConfig(level=logging.INFO)
-APP_VERSION='0.12.3'
+APP_VERSION='0.13.0'
 @contextmanager
 def db():
     c=sqlite3.connect(DB,timeout=30); c.row_factory=sqlite3.Row
@@ -199,6 +199,7 @@ def dkim_check(domain,selected):
         results.append(dict(selector=s,query=name,**item))
     return res(worst(results),'All configured selectors must pass.',selectors=results)
 from dns_host import lookup as dns_host_lookup, label as dns_host_label
+import domain_expiry
 
 def isolated(kind,row):
     try:
@@ -224,6 +225,7 @@ def worker():
                     beat(); data[kind]=isolated(kind,row)
                 data['status']=worst(data.values())
                 beat(); data['dns_host']=isolated('dns_host',row)
+                beat(); data['domain_expiry']=isolated('domain_expiry',row)
                 data['configuration']={k:row[k] for k in ('domain','label','selectors','policy')}
                 data['trigger']='scheduled' if scheduled else 'manual / new or edited domain'
                 now=time.time(); encoded=json.dumps(data)
@@ -239,6 +241,8 @@ def worker():
             logging.exception('Worker loop error'); time.sleep(10)
 app=Flask(__name__)
 app.jinja_env.globals['dns_host_label']=dns_host_label
+app.jinja_env.globals['expiry_label']=domain_expiry.label
+app.jinja_env.globals['expiry_class']=domain_expiry.css_class
 app.secret_key=os.environ.get('SECRET_KEY','')
 app.config.update(MAX_CONTENT_LENGTH=16384,SESSION_COOKIE_HTTPONLY=True,SESSION_COOKIE_SAMESITE='Strict',PERMANENT_SESSION_LIFETIME=timedelta(hours=8))
 @app.template_filter('stamp')
@@ -475,7 +479,7 @@ if __name__=='__main__':
     elif mode=='worker': worker()
     elif mode=='check':
         _,_,kind,name,selected,policy=sys.argv
-        print(json.dumps(dns_host_lookup(name) if kind=='dns_host' else dkim_check(name,selected) if kind=='dkim' else record_check(kind,name,policy),default=str))
+        print(json.dumps(domain_expiry.lookup(name) if kind=='domain_expiry' else dns_host_lookup(name) if kind=='dns_host' else dkim_check(name,selected) if kind=='dkim' else record_check(kind,name,policy),default=str))
     elif mode=='worker-health':
         with db() as c: b=c.execute("SELECT value FROM state WHERE key='heartbeat'").fetchone()
         sys.exit(0 if b and time.time()-float(b[0])<180 else 1)
