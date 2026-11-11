@@ -51,7 +51,7 @@ Review `CHANGELOG.md` for release history.
 <!-- BEGIN UPDATE COMMANDS -->
 ## Updating Domain Monitor
 
-Latest documented release: **v0.12.2**
+Latest documented release: **v0.12.3**
 
 Run these commands through SSH on the application host, not in a separate development checkout. Adjust the directory if your installation uses another path.
 
@@ -73,7 +73,7 @@ sudo ./scripts/update.sh
 
 ```bash
 cd /opt/domain-monitor
-sudo ./scripts/update.sh --version 0.12.2
+sudo ./scripts/update.sh --version 0.12.3
 ```
 
 ### Verify the deployment

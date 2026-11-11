@@ -42,7 +42,7 @@ from werkzeug.security import check_password_hash
 DATA=os.environ.get('DATA_DIR','/data')
 DB=DATA+'/monitor.sqlite3'
 logging.basicConfig(level=logging.INFO)
-APP_VERSION='0.12.2'
+APP_VERSION='0.12.3'
 @contextmanager
 def db():
     c=sqlite3.connect(DB,timeout=30); c.row_factory=sqlite3.Row
@@ -350,8 +350,12 @@ def edit(ident=None):
     return render_template('edit.html',form=form,ident=ident)
 @app.post('/domain/<int:ident>/check')
 def queue(ident):
-    with db() as c: c.execute('UPDATE domains SET manual_pending=1,revision=revision+1 WHERE id=?',(ident,))
-    flash('Check queued. Refresh shortly.'); return redirect('/')
+    with db() as c:
+        exists=c.execute('SELECT 1 FROM domains WHERE id=?',(ident,)).fetchone()
+        if not exists: abort(404)
+        added=c.execute('UPDATE domains SET manual_pending=1,revision=revision+1 WHERE id=? AND manual_pending=0',(ident,)).rowcount
+    flash('Check queued. Refresh shortly.' if added else 'Check already queued. Daily schedule unchanged.')
+    return redirect(f'/domain/{ident}')
 @app.post('/domain/<int:ident>/delete')
 def delete(ident):
     if request.form.get('confirm')!='DELETE': abort(400,'Type DELETE to confirm.')
