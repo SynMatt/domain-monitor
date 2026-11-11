@@ -14,6 +14,23 @@ class SearchSortTests(Tests):
         self.assertIn(b'example-company.co.nz',page.data); self.assertNotIn(b'example.net',page.data); self.assertIn(b'Showing 1 of 2 domains',page.data)
         page=self.client.get('/?q=other')
         self.assertIn(b'example.net',page.data); self.assertNotIn(b'example-company.co.nz',page.data)
+    def test_default_and_invalid_sort_use_domain_a_to_z(self):
+        self.auth()
+        self.add_result('zulu.example','')
+        self.add_result('alpha.example','',spf='fail')
+        for path in ('/', '/?sort=bad'):
+            page=self.client.get(path)
+            self.assertEqual(page.status_code,200)
+            self.assertLess(page.data.index(b'alpha.example'),page.data.index(b'zulu.example'))
+            self.assertIn(b'<option value="domain" selected>Domain A-Z</option>',page.data)
+
+    def test_explicit_severity_sort_is_still_available(self):
+        self.auth()
+        self.add_result('alpha.example','',spf='pass')
+        self.add_result('zulu.example','',spf='fail')
+        page=self.client.get('/?sort=severity')
+        self.assertLess(page.data.index(b'zulu.example'),page.data.index(b'alpha.example'))
+
     def test_severity_sort(self):
         self.auth(); self.add_result('pass.example','',spf='pass'); self.add_result('fail.example','',spf='fail'); self.add_result('warn.example','',spf='warn')
         data=self.client.get('/?sort=severity').data
@@ -27,6 +44,6 @@ class SearchSortTests(Tests):
         page=self.client.get('/?sort=bad')
         self.assertEqual(page.status_code,200); self.assertIn(b'one.example',page.data)
     def test_version_and_changelog(self):
-        self.assertEqual(self.client.get('/health').json['version'],'0.11.4')
-        self.assertIn('## 0.11.4 - 2026-11-11',Path('/app/CHANGELOG.md').read_text())
+        self.assertEqual(self.client.get('/health').json['version'],'0.12.1')
+        self.assertIn('## 0.12.1 - 2026-11-11',Path('/app/CHANGELOG.md').read_text())
 if __name__=='__main__': unittest.main(verbosity=2)
