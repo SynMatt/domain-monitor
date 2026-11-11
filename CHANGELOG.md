@@ -1,5 +1,18 @@
 # Domain Monitor changelog
 
+## 0.12.3 - 2026-11-11
+
+### Added
+- Added Check now beside Edit settings on each domain details page.
+
+### Changed
+- Manual checks from a domain details page return to that same domain page.
+- Duplicate Check now requests no longer re-queue the domain or increment its revision while a manual check is already pending.
+- Refreshed README copy/paste update commands for 0.12.3.
+
+### Fixed
+- Manual Check now preserves the domain's existing daily due time.
+
 ## 0.12.2 - 2026-11-11
 
 ### Changed
