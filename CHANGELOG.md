@@ -1,5 +1,20 @@
 # Domain Monitor changelog
 
+## 0.13.2 - 2026-11-11
+
+### Added
+- Added optional manual domain-expiry dates and source notes for registries that do not publish expiry information.
+- Added a bounded `.nz` WHOIS fallback through `whois.irs.net.nz` after unsupported RDAP lookups.
+
+### Changed
+- Domain expiry now distinguishes Not checked yet, Not published by registry, Temporary lookup error, and a confirmed expiry date.
+- Manual expiry dates take priority over automatic registry results and are preserved in SQLite backups.
+- Refreshed README copy/paste update commands for 0.13.2.
+
+### Security
+- WHOIS responses are size-limited, time-limited, and parsed only for explicit expiry fields; Updated Date is never treated as expiry.
+
+
 ## 0.13.1 - 2026-11-11
 
 ### Fixed
