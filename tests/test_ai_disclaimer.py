@@ -12,6 +12,6 @@ class AiDisclaimerTests(Tests):
         self.assertIn(b'may not be actively maintained',page.data)
         self.assertIn(b'independently validate results',page.data)
     def test_version_and_changelog(self):
-        self.assertEqual(self.client.get('/health').json['version'],'0.12.1')
-        self.assertIn('## 0.12.1 - 2026-11-11',Path('/app/CHANGELOG.md').read_text())
+        self.assertEqual(self.client.get('/health').json['version'],'0.12.2')
+        self.assertIn('## 0.12.2 - 2026-11-11',Path('/app/CHANGELOG.md').read_text())
 if __name__=='__main__': unittest.main(verbosity=2)
