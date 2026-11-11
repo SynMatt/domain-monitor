@@ -42,7 +42,7 @@ from werkzeug.security import check_password_hash
 DATA=os.environ.get('DATA_DIR','/data')
 DB=DATA+'/monitor.sqlite3'
 logging.basicConfig(level=logging.INFO)
-APP_VERSION='0.11.4'
+APP_VERSION='0.12.1'
 @contextmanager
 def db():
     c=sqlite3.connect(DB,timeout=30); c.row_factory=sqlite3.Row
@@ -305,9 +305,9 @@ def index():
         status=d['data'][kind].get('status','unknown')
         return status if status in valid_statuses else 'unknown'
     search_query=request.args.get('q','').strip()[:100]
-    sort_mode=request.args.get('sort','severity')
+    sort_mode=request.args.get('sort','domain')
     valid_sorts=('severity','domain','last_checked','next_due')
-    if sort_mode not in valid_sorts: sort_mode='severity'
+    if sort_mode not in valid_sorts: sort_mode='domain'
     filtered_domains=domains
     if filter_kind:
         filtered_domains=[d for d in filtered_domains if displayed_status(d,filter_kind)==filter_status]

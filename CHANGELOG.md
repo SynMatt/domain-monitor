@@ -1,5 +1,12 @@
 # Domain Monitor changelog
 
+## 0.12.1 - 2026-11-11
+
+### Changed
+- Changed the default dashboard sort to Domain A-Z.
+- Invalid or missing sort values now safely fall back to Domain A-Z; Failures first remains available as an explicit choice.
+- Refreshed README copy/paste update commands for 0.12.1.
+
 ## 0.11.4 - 2026-11-11
 
 ### Added
