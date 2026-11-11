@@ -23,7 +23,7 @@ class DomainExpiryTests(Tests):
 
     def test_network_failure_is_isolated(self):
         with patch('domain_expiry.urlopen',side_effect=TimeoutError()):
-            self.assertEqual(expiry.lookup('example.com')['status'],'unavailable')
+            self.assertEqual(expiry.lookup('example.com')['status'],'temporary_error')
 
     def test_dashboard_load_does_not_query_rdap(self):
         self.auth(); self.add()

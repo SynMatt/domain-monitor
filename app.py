@@ -42,7 +42,7 @@ from werkzeug.security import check_password_hash
 DATA=os.environ.get('DATA_DIR','/data')
 DB=DATA+'/monitor.sqlite3'
 logging.basicConfig(level=logging.INFO)
-APP_VERSION='0.13.1'
+APP_VERSION='0.13.2'
 @contextmanager
 def db():
     c=sqlite3.connect(DB,timeout=30); c.row_factory=sqlite3.Row
@@ -94,6 +94,10 @@ CREATE TABLE IF NOT EXISTS attempts(at REAL NOT NULL);
         columns={r[1] for r in c.execute('PRAGMA table_info(domains)')}
         if 'manual_pending' not in columns:
             c.execute('ALTER TABLE domains ADD COLUMN manual_pending INTEGER NOT NULL DEFAULT 0')
+        if 'manual_expiry' not in columns:
+            c.execute("ALTER TABLE domains ADD COLUMN manual_expiry TEXT NOT NULL DEFAULT ''")
+        if 'manual_expiry_source' not in columns:
+            c.execute("ALTER TABLE domains ADD COLUMN manual_expiry_source TEXT NOT NULL DEFAULT ''")
         c.execute("INSERT OR IGNORE INTO state VALUES('daily_time','03:00')")
         c.execute("INSERT OR IGNORE INTO state VALUES('timezone',?)",(DEFAULT_TIMEZONE,))
         if not c.execute("SELECT 1 FROM state WHERE key='fixed_schedule_v1'").fetchone():
@@ -243,6 +247,7 @@ app=Flask(__name__)
 app.jinja_env.globals['dns_host_label']=dns_host_label
 app.jinja_env.globals['expiry_label']=domain_expiry.label
 app.jinja_env.globals['expiry_class']=domain_expiry.css_class
+app.jinja_env.globals['expiry_source']=domain_expiry.source_label
 app.secret_key=os.environ.get('SECRET_KEY','')
 app.config.update(MAX_CONTENT_LENGTH=16384,SESSION_COOKIE_HTTPONLY=True,SESSION_COOKIE_SAMESITE='Strict',PERMANENT_SESSION_LIFETIME=timedelta(hours=8))
 @app.template_filter('stamp')
@@ -335,20 +340,24 @@ def index():
 def edit(ident=None):
     with db() as c: row=c.execute('SELECT * FROM domains WHERE id=?',(ident,)).fetchone() if ident else None
     if ident and not row: abort(404)
-    form=dict(row) if row else dict(domain='',label='',selectors='',policy='quarantine')
+    form=dict(row) if row else dict(domain='',label='',selectors='',policy='quarantine',manual_expiry='',manual_expiry_source='')
     if request.method=='POST':
-        form.update({k:request.form.get(k,'') for k in ('domain','label','selectors','policy')})
+        form.update({k:request.form.get(k,'') for k in ('domain','label','selectors','policy','manual_expiry','manual_expiry_source')})
         try:
             name=domain_name(form['domain']); selected=selectors(form['selectors'])
             if selected and any(len(f'{s}._domainkey.{name}')>253 for s in selected.split(',')): raise ValueError('Selector and domain name are too long together.')
             if form['policy'] not in ('none','quarantine','reject'): raise ValueError('Invalid policy.')
             if len(form['label'])>100: raise ValueError('Label exceeds 100 characters.')
+            manual_expiry=domain_expiry.validate_manual_date(form['manual_expiry'])
+            manual_expiry_source=form['manual_expiry_source'].strip()
+            if len(manual_expiry_source)>100: raise ValueError('Expiry source/note exceeds 100 characters.')
+            if manual_expiry and not manual_expiry_source: manual_expiry_source='Manual / registrar portal'
             with db() as c:
                 if ident:
-                    c.execute('UPDATE domains SET domain=?,label=?,selectors=?,policy=?,revision=revision+1,manual_pending=1,checked=NULL,result=NULL WHERE id=?',(name,form['label'],selected,form['policy'],ident))
+                    c.execute('UPDATE domains SET domain=?,label=?,selectors=?,policy=?,manual_expiry=?,manual_expiry_source=?,revision=revision+1,manual_pending=1,checked=NULL,result=NULL WHERE id=?',(name,form['label'],selected,form['policy'],manual_expiry,manual_expiry_source,ident))
                 else:
                     if c.execute('SELECT COUNT(*) FROM domains').fetchone()[0]>=500: raise ValueError('Initial version limit: 500 domains.')
-                    c.execute('INSERT INTO domains(domain,label,selectors,policy,due,manual_pending) VALUES(?,?,?,?,?,1)',(name,form['label'],selected,form['policy'],next_run(time.time(),get_clock(c),selected_zone(c))))
+                    c.execute('INSERT INTO domains(domain,label,selectors,policy,manual_expiry,manual_expiry_source,due,manual_pending) VALUES(?,?,?,?,?,?,?,1)',(name,form['label'],selected,form['policy'],manual_expiry,manual_expiry_source,next_run(time.time(),get_clock(c),selected_zone(c))))
             flash('Saved. Check queued.'); return redirect('/')
         except (ValueError,sqlite3.IntegrityError) as e: flash('Domain already exists.' if isinstance(e,sqlite3.IntegrityError) else str(e))
     return render_template('edit.html',form=form,ident=ident)
