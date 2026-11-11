@@ -1,5 +1,12 @@
 # Domain Monitor changelog
 
+## 0.12.2 - 2026-11-11
+
+### Changed
+- Refresh now reloads the current page instead of always returning to the dashboard.
+- Dashboard Refresh preserves the current search text, SPF/DKIM/DMARC filter and selected sort by keeping the current query string.
+- Refreshed README copy/paste update commands for 0.12.2.
+
 ## 0.12.1 - 2026-11-11
 
 ### Changed
