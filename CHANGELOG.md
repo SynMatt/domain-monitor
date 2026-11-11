@@ -1,5 +1,17 @@
 # Domain Monitor changelog
 
+## 0.13.0 - 2026-11-11
+
+### Added
+- Added cached domain registration expiry checks using RDAP expiration events.
+- Added expiry date and days remaining to dashboard cards and domain history.
+- Added green, amber and red expiry indicators for over 90 days, 31–90 days, and 30 days or fewer/expired.
+
+### Changed
+- Expiry is collected by the isolated checker during domain checks and never during dashboard page loads.
+- Expiry lookup failures display Unavailable and do not change SPF, DKIM or DMARC health.
+- Refreshed README copy/paste update commands for 0.13.0.
+
 ## 0.12.3 - 2026-11-11
 
 ### Added
