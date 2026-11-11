@@ -19,6 +19,6 @@ class CapitalStatusTests(Tests):
         self.assertIn(b'DMARC: Pass',page.data)
         self.assertNotIn(b'SPF: fail',page.data)
     def test_version_and_changelog(self):
-        self.assertEqual(self.client.get('/health').json['version'],'0.13.0')
-        self.assertIn('## 0.13.0 - 2026-11-11',Path('/app/CHANGELOG.md').read_text())
+        self.assertEqual(self.client.get('/health').json['version'],'0.13.1')
+        self.assertIn('## 0.13.1 - 2026-11-11',Path('/app/CHANGELOG.md').read_text())
 if __name__=='__main__': unittest.main(verbosity=2)

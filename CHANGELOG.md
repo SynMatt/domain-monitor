@@ -1,5 +1,18 @@
 # Domain Monitor changelog
 
+## 0.13.1 - 2026-11-11
+
+### Fixed
+- Check now on the dashboard now returns to the same dashboard view instead of opening the domain details page.
+- Dashboard search, filter and sort query parameters are preserved after queuing a check.
+- Check now on a domain details page continues to return to that domain.
+
+### Security
+- Check-now return paths accept only local application paths and reject external or protocol-relative redirects.
+
+### Changed
+- Refreshed README copy/paste update commands for 0.13.1.
+
 ## 0.13.0 - 2026-11-11
 
 ### Added
