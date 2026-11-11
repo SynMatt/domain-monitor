@@ -42,7 +42,7 @@ from werkzeug.security import check_password_hash
 DATA=os.environ.get('DATA_DIR','/data')
 DB=DATA+'/monitor.sqlite3'
 logging.basicConfig(level=logging.INFO)
-APP_VERSION='0.13.2'
+APP_VERSION='0.13.3'
 @contextmanager
 def db():
     c=sqlite3.connect(DB,timeout=30); c.row_factory=sqlite3.Row
@@ -204,6 +204,7 @@ def dkim_check(domain,selected):
     return res(worst(results),'All configured selectors must pass.',selectors=results)
 from dns_host import lookup as dns_host_lookup, label as dns_host_label
 import domain_expiry
+import dns_evidence
 
 def isolated(kind,row):
     try:
@@ -228,6 +229,7 @@ def worker():
                 for kind in ('spf','dkim','dmarc'):
                     beat(); data[kind]=isolated(kind,row)
                 data['status']=worst(data.values())
+                beat(); data['dns_evidence']=isolated('dns_evidence',row)
                 beat(); data['dns_host']=isolated('dns_host',row)
                 beat(); data['domain_expiry']=isolated('domain_expiry',row)
                 data['configuration']={k:row[k] for k in ('domain','label','selectors','policy')}
@@ -491,7 +493,7 @@ if __name__=='__main__':
     elif mode=='worker': worker()
     elif mode=='check':
         _,_,kind,name,selected,policy=sys.argv
-        print(json.dumps(domain_expiry.lookup(name) if kind=='domain_expiry' else dns_host_lookup(name) if kind=='dns_host' else dkim_check(name,selected) if kind=='dkim' else record_check(kind,name,policy),default=str))
+        print(json.dumps(dns_evidence.lookup(name,selected) if kind=='dns_evidence' else domain_expiry.lookup(name) if kind=='domain_expiry' else dns_host_lookup(name) if kind=='dns_host' else dkim_check(name,selected) if kind=='dkim' else record_check(kind,name,policy),default=str))
     elif mode=='worker-health':
         with db() as c: b=c.execute("SELECT value FROM state WHERE key='heartbeat'").fetchone()
         sys.exit(0 if b and time.time()-float(b[0])<180 else 1)

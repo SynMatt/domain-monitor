@@ -15,10 +15,10 @@ class ChangeLogTests(Tests):
         self.assertIn(b'Fixed',page.data)
         self.assertIn(b'Removed',page.data) if b'Removed' in page.data else None
         home=self.client.get('/')
-        self.assertIn(b'v0.13.2',home.data)
+        self.assertIn(b'v0.13.3',home.data)
         self.assertIn(b'Change log',home.data)
 
     def test_health_version(self):
-        self.assertEqual(self.client.get('/health').json['version'],'0.13.2')
+        self.assertEqual(self.client.get('/health').json['version'],'0.13.3')
 
 if __name__=='__main__': unittest.main(verbosity=2)

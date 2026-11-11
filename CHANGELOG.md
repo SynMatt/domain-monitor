@@ -1,4 +1,13 @@
 # Domain Monitor changelog
+## 0.13.3 - 2026-11-11
+### Added
+- Added automated recursive and authoritative DNS evidence for SPF, DMARC and configured DKIM selectors.
+- Added authoritative consensus, TTL, response-code, resolver and query-time details to domain history.
+### Changed
+- Manual and scheduled checks now record whether recursive DNS matches the authoritative nameservers.
+- DNS disagreement is reported as evidence and does not silently overwrite SPF, DKIM or DMARC health.
+### Security
+- Authoritative queries are bounded to eight nameservers, use short timeouts, and never run during dashboard page loads.
 
 ## 0.13.2 - 2026-11-11
 
