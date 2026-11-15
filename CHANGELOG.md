@@ -1,4 +1,17 @@
 # Domain Monitor changelog
+## 0.13.5 - 2026-11-16
+
+### Added
+- Added sticky dashboard navigation while domain cards scroll.
+- Added card-level Check queued feedback for pending manual checks.
+
+### Fixed
+- Check now on a dashboard card restores the same card after reload instead of jumping to the top.
+- Dashboard search, status filters, sort selection, and scroll position remain intact after queuing a manual check.
+
+### Security
+- Scroll restoration uses same-tab session storage only and adds no inline script or external dependency.
+
 ## 0.13.4 - 2026-11-16
 ### Added
 - Added protected Check-all batches with completed/total progress on the dashboard.
