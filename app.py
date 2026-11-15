@@ -42,7 +42,7 @@ from werkzeug.security import check_password_hash
 DATA=os.environ.get('DATA_DIR','/data')
 DB=DATA+'/monitor.sqlite3'
 logging.basicConfig(level=logging.INFO)
-APP_VERSION='0.13.3'
+APP_VERSION='0.13.4'
 @contextmanager
 def db():
     c=sqlite3.connect(DB,timeout=30); c.row_factory=sqlite3.Row
@@ -90,6 +90,9 @@ CREATE TABLE IF NOT EXISTS history(id INTEGER PRIMARY KEY,domain_id INTEGER NOT 
 CREATE INDEX IF NOT EXISTS history_domain ON history(domain_id,id);
 CREATE TABLE IF NOT EXISTS state(key TEXT PRIMARY KEY,value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS attempts(at REAL NOT NULL);
+CREATE TABLE IF NOT EXISTS check_batches(id INTEGER PRIMARY KEY,status TEXT NOT NULL CHECK(status IN ('active','complete','stalled')),total INTEGER NOT NULL,created REAL NOT NULL,updated REAL NOT NULL,finished REAL);
+CREATE TABLE IF NOT EXISTS check_batch_items(batch_id INTEGER NOT NULL REFERENCES check_batches(id) ON DELETE CASCADE,domain_id INTEGER NOT NULL REFERENCES domains(id) ON DELETE CASCADE,status TEXT NOT NULL CHECK(status IN ('queued','running','complete','failed')),started REAL,finished REAL,error TEXT NOT NULL DEFAULT '',PRIMARY KEY(batch_id,domain_id));
+CREATE INDEX IF NOT EXISTS check_batch_items_status ON check_batch_items(batch_id,status);
 """)
         columns={r[1] for r in c.execute('PRAGMA table_info(domains)')}
         if 'manual_pending' not in columns:
@@ -216,6 +219,20 @@ def isolated(kind,row):
     except Exception as e: return res('unknown','Checker error: '+str(e))
 def beat():
     with db() as c: c.execute("INSERT OR REPLACE INTO state VALUES('heartbeat',?)",(str(time.time()),))
+def active_batch(c):
+    row=c.execute("SELECT * FROM check_batches WHERE status='active' ORDER BY id DESC LIMIT 1").fetchone()
+    if row and time.time()-row['updated']>600:
+        c.execute("UPDATE check_batches SET status='stalled',finished=? WHERE id=?",(time.time(),row['id']))
+        return None
+    return row
+
+def batch_snapshot(c):
+    row=active_batch(c) or c.execute('SELECT * FROM check_batches ORDER BY id DESC LIMIT 1').fetchone()
+    if not row: return None
+    counts={x['status']:x['n'] for x in c.execute('SELECT status,COUNT(*) n FROM check_batch_items WHERE batch_id=? GROUP BY status',(row['id'],))}
+    complete=counts.get('complete',0); failed=counts.get('failed',0); done=complete+failed
+    return dict(id=row['id'],status=row['status'],total=row['total'],done=done,complete=complete,failed=failed,queued=counts.get('queued',0),running=counts.get('running',0),percent=round(done*100/row['total']) if row['total'] else 100)
+
 def worker():
     init()
     while True:
@@ -223,7 +240,15 @@ def worker():
             beat()
             with db() as c: row=c.execute('SELECT * FROM domains WHERE manual_pending=1 OR due<=? ORDER BY due,id LIMIT 1',(time.time(),)).fetchone()
             if row:
-                started=time.time()
+                started=time.time(); batch_id=None
+                with db() as c:
+                    batch=active_batch(c)
+                    if batch:
+                        item=c.execute("SELECT status FROM check_batch_items WHERE batch_id=? AND domain_id=?",(batch['id'],row['id'])).fetchone()
+                        if item and item['status']=='queued':
+                            c.execute("UPDATE check_batch_items SET status='running',started=? WHERE batch_id=? AND domain_id=?",(started,batch['id'],row['id']))
+                            c.execute('UPDATE check_batches SET updated=? WHERE id=?',(started,batch['id']))
+                            batch_id=batch['id']
                 scheduled=row['due']<=started
                 data={}
                 for kind in ('spf','dkim','dmarc'):
@@ -241,6 +266,12 @@ def worker():
                     if updated:
                         c.execute('INSERT INTO history(domain_id,checked,result) VALUES(?,?,?)',(row['id'],now,encoded))
                         c.execute('DELETE FROM history WHERE domain_id=? AND id NOT IN(SELECT id FROM history WHERE domain_id=? ORDER BY id DESC LIMIT 1000)',(row['id'],row['id']))
+                    if batch_id:
+                        state='complete' if updated else 'failed'; error='' if updated else 'Domain changed during check.'
+                        c.execute('UPDATE check_batch_items SET status=?,finished=?,error=? WHERE batch_id=? AND domain_id=?',(state,now,error,batch_id,row['id']))
+                        counts=c.execute("SELECT COUNT(*) total,SUM(status IN ('complete','failed')) done FROM check_batch_items WHERE batch_id=?",(batch_id,)).fetchone()
+                        finished=counts['done']>=counts['total']
+                        c.execute('UPDATE check_batches SET updated=?,status=?,finished=? WHERE id=?',(now,'complete' if finished else 'active',now if finished else None,batch_id))
                     c.execute('DELETE FROM history WHERE checked<?',(now-90*86400,))
             else: time.sleep(5)
         except Exception:
@@ -263,7 +294,7 @@ def protect():
     if request.endpoint!='login' and not session.get('authenticated'): return redirect('/login')
 @app.after_request
 def headers(r):
-    r.headers.update({'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','X-Frame-Options':'DENY','Referrer-Policy':'no-referrer','Content-Security-Policy':"default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'none'; frame-ancestors 'none'; form-action 'self'; base-uri 'none'"})
+    r.headers.update({'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','X-Frame-Options':'DENY','Referrer-Policy':'no-referrer','Content-Security-Policy':"default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-ancestors 'none'; form-action 'self'; base-uri 'none'"})
     return r
 @app.get('/health')
 def health():
@@ -292,6 +323,7 @@ def index():
         b=c.execute("SELECT value FROM state WHERE key='heartbeat'").fetchone()
         clock=get_clock(c)
         timezone_name=get_timezone(c)
+        check_batch=batch_snapshot(c)
     domains=[]; now=time.time()
     for r in rows:
         d=dict(r); d['data']=json.loads(r['result']) if r['result'] else None
@@ -336,7 +368,7 @@ def index():
         'next_due':lambda d:(d['due'] or float('inf'),d['domain'])
     }
     filtered_domains=sorted(filtered_domains,key=sort_keys[sort_mode])
-    return render_template('index.html',domains=domains,filtered_domains=filtered_domains,worker_ok=bool(b and now-float(b[0])<180),clock=clock,timezone_name=timezone_name,summary=summary,filter_kind=filter_kind,filter_status=filter_status,search_query=search_query,sort_mode=sort_mode)
+    return render_template('index.html',domains=domains,filtered_domains=filtered_domains,worker_ok=bool(b and now-float(b[0])<180),clock=clock,timezone_name=timezone_name,summary=summary,filter_kind=filter_kind,filter_status=filter_status,search_query=search_query,sort_mode=sort_mode,check_batch=check_batch)
 @app.route('/new',methods=['GET','POST'])
 @app.route('/domain/<int:ident>/edit',methods=['GET','POST'])
 def edit(ident=None):
@@ -459,12 +491,25 @@ def bulk_add():
 
 @app.post('/check-all')
 def check_all():
+    now=time.time(); target=request.form.get('next','/')
+    if not target.startswith('/') or target.startswith('//'): target='/'
     with db() as c:
         c.execute('BEGIN IMMEDIATE')
-        total=c.execute('SELECT COUNT(*) FROM domains').fetchone()[0]
-        added=c.execute('UPDATE domains SET manual_pending=1,revision=revision+1 WHERE manual_pending=0').rowcount
-    flash(f'{added} domains queued; {total-added} already queued. Daily schedule unchanged. Refresh for results.')
-    return redirect('/')
+        existing=active_batch(c)
+        if existing:
+            snap=batch_snapshot(c); flash(f"Check-all already running: {snap['done']} / {snap['total']} complete.")
+            return redirect(target)
+        ids=[r['id'] for r in c.execute('SELECT id FROM domains ORDER BY id')]
+        if not ids: flash('There are no domains to check.'); return redirect(target)
+        batch=c.execute("INSERT INTO check_batches(status,total,created,updated) VALUES('active',?,?,?)",(len(ids),now,now)).lastrowid
+        c.executemany("INSERT INTO check_batch_items(batch_id,domain_id,status) VALUES(?,?,'queued')",[(batch,x) for x in ids])
+        c.execute('UPDATE domains SET manual_pending=1,revision=revision+1 WHERE manual_pending=0')
+    flash(f'Check-all started: 0 / {len(ids)} complete.'); return redirect(target)
+
+@app.get('/check-all/status')
+def check_all_status():
+    with db() as c: snap=batch_snapshot(c)
+    return snap or {'status':'idle','total':0,'done':0,'complete':0,'failed':0,'queued':0,'running':0,'percent':0}
 
 
 @app.get('/changelog')

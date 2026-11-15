@@ -1,4 +1,13 @@
 # Domain Monitor changelog
+## 0.13.4 - 2026-11-16
+### Added
+- Added protected Check-all batches with completed/total progress on the dashboard.
+- Added queued, running and failed counts with three-second progress updates.
+### Fixed
+- Prevented repeated Check-all clicks from creating duplicate batches or rewriting queued work.
+- Preserved active batch progress across worker restarts.
+### Security
+- Kept batch status behind authentication and exposed operational counts only.
 ## 0.13.3 - 2026-11-11
 ### Added
 - Added automated recursive and authoritative DNS evidence for SPF, DMARC and configured DKIM selectors.
