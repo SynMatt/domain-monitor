@@ -43,7 +43,7 @@ from werkzeug.security import check_password_hash
 DATA=os.environ.get('DATA_DIR','/data')
 DB=DATA+'/monitor.sqlite3'
 logging.basicConfig(level=logging.INFO)
-APP_VERSION='0.13.10'
+APP_VERSION='0.14.0'
 def check_workers():
     try: value=int(os.environ.get('CHECK_WORKERS','4'))
     except ValueError: value=4
@@ -228,6 +228,34 @@ def isolated(kind,row):
         return json.loads(p.stdout)
     except subprocess.TimeoutExpired: return res('unknown','Check exceeded 120-second time limit.')
     except Exception as e: return res('unknown','Checker error: '+str(e))
+DOMAIN_CHECK_TIMEOUT=240
+def collect_domain(name,selected,policy,include_expiry=True):
+    """Run every check for one domain in a single process.
+    Each step is isolated so one failure cannot discard the others."""
+    def safe(label,fn,*args):
+        try: return fn(*args)
+        except Exception as e: return res('unknown',f'{label} checker error: {type(e).__name__}: {e}')
+    data={}
+    data['spf']=safe('SPF',record_check,'spf',name,policy)
+    data['dkim']=safe('DKIM',dkim_check,name,selected)
+    data['dmarc']=safe('DMARC',record_check,'dmarc',name,policy)
+    data['dns_evidence']=safe('DNS evidence',dns_evidence.lookup,name,selected)
+    data['dns_host']=safe('DNS host',dns_host_lookup,name)
+    if include_expiry: data['domain_expiry']=safe('Domain expiry',domain_expiry.lookup,name)
+    return data
+def isolated_domain(row,include_expiry=True):
+    """Check one domain in one child process. Returns None on process failure."""
+    args=[sys.executable,__file__,'check-domain',row['domain'],row['selectors'],row['policy'],'1' if include_expiry else '0']
+    try:
+        p=subprocess.run(args,capture_output=True,text=True,timeout=DOMAIN_CHECK_TIMEOUT)
+        if p.returncode:
+            logging.error('Domain checker failed for %s: %s',row['domain'],p.stderr[-2000:]); return None
+        data=json.loads(p.stdout)
+        return data if isinstance(data,dict) else None
+    except subprocess.TimeoutExpired:
+        logging.error('Domain checker exceeded %s seconds for %s',DOMAIN_CHECK_TIMEOUT,row['domain']); return None
+    except Exception as e:
+        logging.error('Domain checker error for %s: %s',row['domain'],e); return None
 def beat():
     with db() as c: c.execute("INSERT OR REPLACE INTO state VALUES('heartbeat',?)",(str(time.time()),))
 def active_batch(c):
@@ -244,7 +272,8 @@ def batch_snapshot(c):
     complete=counts.get('complete',0); failed=counts.get('failed',0); done=complete+failed
     elapsed=max(0,time.time()-row['created']); rate=done/elapsed if done and elapsed else 0
     remaining=max(0,row['total']-done); eta=round(remaining/rate) if rate else None
-    return dict(id=row['id'],status=row['status'],total=row['total'],done=done,complete=complete,failed=failed,queued=counts.get('queued',0),running=counts.get('running',0),percent=round(done*100/row['total']) if row['total'] else 100,workers=check_workers(),elapsed_seconds=round(elapsed),eta_seconds=eta,cancelled=bool(row['cancelled']) if 'cancelled' in row.keys() else False)
+    avg=c.execute("SELECT AVG(finished-started) FROM check_batch_items WHERE batch_id=? AND status='complete' AND started IS NOT NULL AND finished IS NOT NULL",(row['id'],)).fetchone()[0]
+    return dict(id=row['id'],status=row['status'],total=row['total'],done=done,complete=complete,failed=failed,queued=counts.get('queued',0),running=counts.get('running',0),percent=round(done*100/row['total']) if row['total'] else 100,workers=check_workers(),elapsed_seconds=round(elapsed),eta_seconds=eta,avg_seconds=round(avg,1) if avg is not None else None,cancelled=bool(row['cancelled']) if 'cancelled' in row.keys() else False)
 
 EXPIRY_CACHE_SECONDS=24*3600
 def cached_expiry(row,now=None):
@@ -266,13 +295,21 @@ def cached_expiry(row,now=None):
         result['days_remaining']=int((float(result['expires_at'])-now)//86400)
     return result
 def run_domain_check(row,batch_id,scheduled):
+    cached=cached_expiry(row)
+    checked=isolated_domain(row,include_expiry=cached is None)
+    if checked is None:
+        checked={}; failure=res('unknown',f'Domain check process failed or exceeded {DOMAIN_CHECK_TIMEOUT} seconds; see worker logs.')
+    else: failure=res('unknown','Checker returned no result.')
+    def part(kind):
+        value=checked.get(kind)
+        return value if isinstance(value,dict) and 'status' in value else failure
     data={}
     for kind in ('spf','dkim','dmarc'):
-        data[kind]=isolated(kind,row)
+        data[kind]=part(kind)
     data['status']=worst(data.values())
-    data['dns_evidence']=isolated('dns_evidence',row)
-    data['dns_host']=isolated('dns_host',row)
-    data['domain_expiry']=cached_expiry(row) or isolated('domain_expiry',row)
+    data['dns_evidence']=checked.get('dns_evidence') if isinstance(checked.get('dns_evidence'),dict) else failure
+    data['dns_host']=checked.get('dns_host') if isinstance(checked.get('dns_host'),dict) else failure
+    data['domain_expiry']=cached or part('domain_expiry')
     data['configuration']={k:row[k] for k in ('domain','label','selectors','policy')}
     data['trigger']='scheduled' if scheduled else 'manual / new or edited domain'
     now=time.time(); encoded=json.dumps(data)
@@ -653,6 +690,9 @@ if __name__=='__main__':
     elif mode=='check':
         _,_,kind,name,selected,policy=sys.argv
         print(json.dumps(dns_evidence.lookup(name,selected) if kind=='dns_evidence' else domain_expiry.lookup(name) if kind=='domain_expiry' else dns_host_lookup(name) if kind=='dns_host' else dkim_check(name,selected) if kind=='dkim' else record_check(kind,name,policy),default=str))
+    elif mode=='check-domain':
+        _,_,name,selected,policy,include_expiry=sys.argv
+        print(json.dumps(collect_domain(name,selected,policy,include_expiry=='1'),default=str))
     elif mode=='worker-health':
         with db() as c: b=c.execute("SELECT value FROM state WHERE key='heartbeat'").fetchone()
         sys.exit(0 if b and time.time()-float(b[0])<180 else 1)

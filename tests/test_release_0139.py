@@ -34,9 +34,10 @@ class Release0139Tests(Tests):
             c.execute('UPDATE domains SET result=?,manual_pending=1 WHERE id=?',(self.result_with_expiry(time.time()-age),ident))
             row=dict(c.execute('SELECT * FROM domains WHERE id=?',(ident,)).fetchone())
         called=[]
-        def fake(kind,row):
-            called.append(kind); return m.res('pass','fixture')
-        with patch.object(m,'isolated',side_effect=fake):
+        def fake(row,include_expiry=True):
+            kinds=['spf','dkim','dmarc','dns_evidence','dns_host']+(['domain_expiry'] if include_expiry else [])
+            called.extend(kinds); return {k:m.res('pass','fixture') for k in kinds}
+        with patch.object(m,'isolated_domain',side_effect=fake):
             m.run_domain_check(row,None,False)
         with m.db() as c:
             saved=json.loads(c.execute('SELECT result FROM domains WHERE id=?',(ident,)).fetchone()['result'])
@@ -94,6 +95,6 @@ class Release0139Tests(Tests):
         self.assertNotIn('innerHTML',script)
 
     def test_version(self):
-        self.assertEqual(self.client.get('/health').json['version'],'0.13.10')
+        self.assertEqual(self.client.get('/health').json['version'],'0.14.0')
 
 if __name__=='__main__': unittest.main(verbosity=2)

@@ -1,4 +1,13 @@
 # Domain Monitor changelog
+## 0.14.0 - 2026-11-17
+### Changed
+- Each domain is now checked in one child process instead of six, removing five application start-ups per domain. Measured start-up cost was 4-6 seconds each, which dominated check time.
+- The container CPU limit is now configurable with `CONTAINER_CPUS` (default 2) instead of a fixed single core.
+- One child process covers SPF, DKIM, DMARC, DNS evidence, DNS host and expiry, with a 240-second limit per domain; each step is still isolated so one failure cannot discard the others.
+### Added
+- Check-all progress now shows the average seconds per domain.
+### Upgrade notes
+- Optional: add `CONTAINER_CPUS='4'` to `.env` on hosts with at least four CPU cores. The value must not exceed the host's core count.
 ## 0.13.10 - 2026-11-17
 ### Added
 - Added Cancel remaining checks to an active Check-all run.

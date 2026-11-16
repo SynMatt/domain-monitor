@@ -19,6 +19,7 @@ Review the source code, test it in a non-production environment, protect credent
 - Bulk domain import
 - Pacific/Auckland timezone support
 - Bounded parallel checks with configurable `CHECK_WORKERS` (default 4, range 1-8)
+- One checker process per domain, with a configurable container CPU limit (`CONTAINER_CPUS`, default 2)
 - Docker Compose deployment
 - In-app changelog
 
@@ -52,7 +53,7 @@ Review `CHANGELOG.md` for release history.
 <!-- BEGIN UPDATE COMMANDS -->
 ## Updating Domain Monitor
 
-Latest documented release: **v0.13.10**
+Latest documented release: **v0.14.0**
 
 Run these commands through SSH on the application host, not in a separate development checkout. Adjust the directory if your installation uses another path.
 
@@ -74,7 +75,7 @@ sudo ./scripts/update.sh
 
 ```bash
 cd /opt/domain-monitor
-sudo ./scripts/update.sh --version 0.13.10
+sudo ./scripts/update.sh --version 0.14.0
 ```
 
 ### Verify the deployment
