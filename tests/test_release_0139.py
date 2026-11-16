@@ -94,6 +94,6 @@ class Release0139Tests(Tests):
         self.assertNotIn('innerHTML',script)
 
     def test_version(self):
-        self.assertEqual(self.client.get('/health').json['version'],'0.13.9')
+        self.assertEqual(self.client.get('/health').json['version'],'0.13.10')
 
 if __name__=='__main__': unittest.main(verbosity=2)

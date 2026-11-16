@@ -43,7 +43,7 @@ from werkzeug.security import check_password_hash
 DATA=os.environ.get('DATA_DIR','/data')
 DB=DATA+'/monitor.sqlite3'
 logging.basicConfig(level=logging.INFO)
-APP_VERSION='0.13.9'
+APP_VERSION='0.13.10'
 def check_workers():
     try: value=int(os.environ.get('CHECK_WORKERS','4'))
     except ValueError: value=4
@@ -106,6 +106,12 @@ CREATE INDEX IF NOT EXISTS check_batch_items_status ON check_batch_items(batch_i
             c.execute("ALTER TABLE domains ADD COLUMN manual_expiry TEXT NOT NULL DEFAULT ''")
         if 'manual_expiry_source' not in columns:
             c.execute("ALTER TABLE domains ADD COLUMN manual_expiry_source TEXT NOT NULL DEFAULT ''")
+        batch_columns={r[1] for r in c.execute('PRAGMA table_info(check_batches)')}
+        if 'cancelled' not in batch_columns:
+            c.execute('ALTER TABLE check_batches ADD COLUMN cancelled INTEGER NOT NULL DEFAULT 0')
+        item_columns={r[1] for r in c.execute('PRAGMA table_info(check_batch_items)')}
+        if 'was_pending' not in item_columns:
+            c.execute('ALTER TABLE check_batch_items ADD COLUMN was_pending INTEGER NOT NULL DEFAULT 0')
         c.execute("INSERT OR IGNORE INTO state VALUES('daily_time','03:00')")
         c.execute("INSERT OR IGNORE INTO state VALUES('timezone',?)",(DEFAULT_TIMEZONE,))
         if not c.execute("SELECT 1 FROM state WHERE key='fixed_schedule_v1'").fetchone():
@@ -238,7 +244,7 @@ def batch_snapshot(c):
     complete=counts.get('complete',0); failed=counts.get('failed',0); done=complete+failed
     elapsed=max(0,time.time()-row['created']); rate=done/elapsed if done and elapsed else 0
     remaining=max(0,row['total']-done); eta=round(remaining/rate) if rate else None
-    return dict(id=row['id'],status=row['status'],total=row['total'],done=done,complete=complete,failed=failed,queued=counts.get('queued',0),running=counts.get('running',0),percent=round(done*100/row['total']) if row['total'] else 100,workers=check_workers(),elapsed_seconds=round(elapsed),eta_seconds=eta)
+    return dict(id=row['id'],status=row['status'],total=row['total'],done=done,complete=complete,failed=failed,queued=counts.get('queued',0),running=counts.get('running',0),percent=round(done*100/row['total']) if row['total'] else 100,workers=check_workers(),elapsed_seconds=round(elapsed),eta_seconds=eta,cancelled=bool(row['cancelled']) if 'cancelled' in row.keys() else False)
 
 EXPIRY_CACHE_SECONDS=24*3600
 def cached_expiry(row,now=None):
@@ -570,17 +576,38 @@ def check_all():
         if existing:
             snap=batch_snapshot(c); flash(f"Check-all already running: {snap['done']} / {snap['total']} complete.")
             return redirect(target)
-        ids=[r['id'] for r in c.execute('SELECT id FROM domains ORDER BY id')]
-        if not ids: flash('There are no domains to check.'); return redirect(target)
-        batch=c.execute("INSERT INTO check_batches(status,total,created,updated) VALUES('active',?,?,?)",(len(ids),now,now)).lastrowid
-        c.executemany("INSERT INTO check_batch_items(batch_id,domain_id,status) VALUES(?,?,'queued')",[(batch,x) for x in ids])
+        domain_rows=c.execute('SELECT id,manual_pending FROM domains ORDER BY id').fetchall()
+        if not domain_rows: flash('There are no domains to check.'); return redirect(target)
+        batch=c.execute("INSERT INTO check_batches(status,total,created,updated) VALUES('active',?,?,?)",(len(domain_rows),now,now)).lastrowid
+        c.executemany("INSERT INTO check_batch_items(batch_id,domain_id,status,was_pending) VALUES(?,?,'queued',?)",[(batch,r['id'],int(bool(r['manual_pending']))) for r in domain_rows])
         c.execute('UPDATE domains SET manual_pending=1,revision=revision+1 WHERE manual_pending=0')
-    flash(f'Check-all started: 0 / {len(ids)} complete.'); return redirect(target)
+    flash(f'Check-all started: 0 / {len(domain_rows)} complete.'); return redirect(target)
+
+@app.post('/check-all/cancel')
+def cancel_check_all():
+    now=time.time(); target=request.form.get('next','/')
+    if not target.startswith('/') or target.startswith('//'): target='/'
+    with db() as c:
+        c.execute('BEGIN IMMEDIATE')
+        batch=active_batch(c)
+        if not batch:
+            flash('No active Check-all run to cancel.')
+            return redirect(target)
+        queued=c.execute("SELECT domain_id,was_pending FROM check_batch_items WHERE batch_id=? AND status='queued'",(batch['id'],)).fetchall()
+        running=c.execute("SELECT COUNT(*) FROM check_batch_items WHERE batch_id=? AND status='running'",(batch['id'],)).fetchone()[0]
+        clear_ids=[r['domain_id'] for r in queued if not r['was_pending']]
+        if clear_ids:
+            marks=','.join('?' for _ in clear_ids)
+            c.execute(f'UPDATE domains SET manual_pending=0 WHERE id IN ({marks})',clear_ids)
+        c.execute("UPDATE check_batch_items SET status='failed',finished=?,error='Cancelled by administrator' WHERE batch_id=? AND status='queued'",(now,batch['id']))
+        c.execute("UPDATE check_batches SET status='complete',cancelled=1,updated=?,finished=? WHERE id=?",(now,now,batch['id']))
+    flash(f'Check-all cancelled: {len(queued)} queued checks removed; {running} already running will finish.')
+    return redirect(target)
 
 @app.get('/check-all/status')
 def check_all_status():
     with db() as c: snap=batch_snapshot(c)
-    return snap or {'status':'idle','total':0,'done':0,'complete':0,'failed':0,'queued':0,'running':0,'percent':0}
+    return snap or {'status':'idle','total':0,'done':0,'complete':0,'failed':0,'queued':0,'running':0,'percent':0,'cancelled':False}
 
 
 @app.get('/domains/status')

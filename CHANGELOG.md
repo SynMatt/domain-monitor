@@ -1,4 +1,12 @@
 # Domain Monitor changelog
+## 0.13.10 - 2026-11-17
+### Added
+- Added Cancel remaining checks to an active Check-all run.
+### Changed
+- Cancelling stops queued batch items immediately while allowing up to the currently running worker count to finish safely.
+- Domains that were individually queued before Check all remain queued after cancellation.
+### Security
+- The cancellation action is authenticated, CSRF-protected, transactional, and preserves completed history.
 ## 0.13.9 - 2026-11-17
 ### Added
 - Dashboard cards now update automatically when their queued check completes, keeping search, filters, sorting and scroll position.
