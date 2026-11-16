@@ -97,6 +97,19 @@ def _direct(server, name, record_type):
     }
 
 
+def _recursive_matches(recursive, records, authoritative):
+    """Compare like-for-like outcomes; resolver errors are not a mismatch."""
+    rcodes = {item.get('rcode') for item in authoritative if item.get('status') == 'ok'}
+    status = recursive.get('status')
+    if status == 'ok':
+        return recursive.get('records', []) == records
+    if status == 'no_answer':
+        return not records and rcodes <= {'NOERROR'}
+    if status == 'nxdomain':
+        return not records and rcodes == {'NXDOMAIN'}
+    return None
+
+
 def query_evidence(domain, name, record_type):
     recursive = _recursive(name, record_type)
     evidence = {
@@ -134,10 +147,7 @@ def query_evidence(domain, name, record_type):
         if len(unique) == 1:
             authoritative_records = list(groups[0])
             evidence['authoritative_records'] = authoritative_records
-            evidence['recursive_matches_authoritative'] = (
-                recursive.get('status') == 'ok' and
-                recursive.get('records', []) == authoritative_records
-            )
+            evidence['recursive_matches_authoritative'] = _recursive_matches(recursive, authoritative_records, evidence['authoritative'])
     return evidence
 
 

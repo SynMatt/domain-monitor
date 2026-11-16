@@ -1,4 +1,15 @@
 # Domain Monitor changelog
+## 0.13.9 - 2026-11-17
+### Added
+- Dashboard cards now update automatically when their queued check completes, keeping search, filters, sorting and scroll position.
+- Pending cards show Check queued, or Checking during a Check-all run; recently completed cards show Updated just now.
+- Added an authenticated status endpoint that returns only pending and completion state for dashboard cards.
+### Changed
+- Confirmed expiry dates and Not published by registry results are reused for 24 hours instead of being looked up on every check, reducing check time and registry traffic.
+- Temporary expiry lookup errors are still retried on the next check.
+### Fixed
+- DNS evidence no longer reports a difference when recursive and authoritative DNS both return NXDOMAIN.
+- Recursive resolver errors are treated as unavailable evidence rather than a recursive/authoritative mismatch.
 ## 0.13.8 - 2026-11-16
 
 ### Added

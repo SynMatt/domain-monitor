@@ -63,7 +63,7 @@ class DomainExpiryManualTests(unittest.TestCase):
     def test_expiry_does_not_change_email_health(self):
         source=Path('/app/app.py').read_text()
         status_line="data['status']=worst(data.values())"
-        expiry_line="data['domain_expiry']=isolated('domain_expiry',row)"
+        expiry_line="data['domain_expiry']=cached_expiry(row) or isolated('domain_expiry',row)"
         self.assertLess(source.index(status_line),source.index(expiry_line))
 
 if __name__=='__main__': unittest.main(verbosity=2)

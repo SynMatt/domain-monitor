@@ -43,7 +43,7 @@ from werkzeug.security import check_password_hash
 DATA=os.environ.get('DATA_DIR','/data')
 DB=DATA+'/monitor.sqlite3'
 logging.basicConfig(level=logging.INFO)
-APP_VERSION='0.13.8'
+APP_VERSION='0.13.9'
 def check_workers():
     try: value=int(os.environ.get('CHECK_WORKERS','4'))
     except ValueError: value=4
@@ -240,6 +240,25 @@ def batch_snapshot(c):
     remaining=max(0,row['total']-done); eta=round(remaining/rate) if rate else None
     return dict(id=row['id'],status=row['status'],total=row['total'],done=done,complete=complete,failed=failed,queued=counts.get('queued',0),running=counts.get('running',0),percent=round(done*100/row['total']) if row['total'] else 100,workers=check_workers(),elapsed_seconds=round(elapsed),eta_seconds=eta)
 
+EXPIRY_CACHE_SECONDS=24*3600
+def cached_expiry(row,now=None):
+    """Reuse a recent confirmed or not-published expiry result; retry errors."""
+    now=now or time.time()
+    try:
+        previous=json.loads(row.get('result') or '{}')
+    except (TypeError,ValueError):
+        return None
+    item=previous.get('domain_expiry') if isinstance(previous,dict) else None
+    if not isinstance(item,dict) or item.get('status') not in ('ok','not_published'):
+        return None
+    checked=item.get('checked_at')
+    if not isinstance(checked,(int,float)) or now-checked>EXPIRY_CACHE_SECONDS or checked>now+300:
+        return None
+    result=dict(item)
+    result['cached']=True
+    if result.get('expires_at') is not None:
+        result['days_remaining']=int((float(result['expires_at'])-now)//86400)
+    return result
 def run_domain_check(row,batch_id,scheduled):
     data={}
     for kind in ('spf','dkim','dmarc'):
@@ -247,7 +266,7 @@ def run_domain_check(row,batch_id,scheduled):
     data['status']=worst(data.values())
     data['dns_evidence']=isolated('dns_evidence',row)
     data['dns_host']=isolated('dns_host',row)
-    data['domain_expiry']=isolated('domain_expiry',row)
+    data['domain_expiry']=cached_expiry(row) or isolated('domain_expiry',row)
     data['configuration']={k:row[k] for k in ('domain','label','selectors','policy')}
     data['trigger']='scheduled' if scheduled else 'manual / new or edited domain'
     now=time.time(); encoded=json.dumps(data)
@@ -418,7 +437,7 @@ def index():
         'next_due':lambda d:(d['due'] or float('inf'),d['domain'])
     }
     filtered_domains=sorted(filtered_domains,key=sort_keys[sort_mode])
-    return render_template('index.html',domains=domains,filtered_domains=filtered_domains,worker_ok=bool(b and now-float(b[0])<180),clock=clock,timezone_name=timezone_name,summary=summary,filter_kind=filter_kind,filter_status=filter_status,search_query=search_query,sort_mode=sort_mode,check_batch=check_batch)
+    return render_template('index.html',domains=domains,filtered_domains=filtered_domains,worker_ok=bool(b and now-float(b[0])<180),clock=clock,timezone_name=timezone_name,summary=summary,filter_kind=filter_kind,filter_status=filter_status,search_query=search_query,sort_mode=sort_mode,check_batch=check_batch,now=now)
 @app.route('/new',methods=['GET','POST'])
 @app.route('/domain/<int:ident>/edit',methods=['GET','POST'])
 def edit(ident=None):
@@ -564,6 +583,22 @@ def check_all_status():
     return snap or {'status':'idle','total':0,'done':0,'complete':0,'failed':0,'queued':0,'running':0,'percent':0}
 
 
+@app.get('/domains/status')
+def domains_status():
+    ids=[]
+    for part in request.args.get('ids','').split(',')[:200]:
+        if part.strip().isdigit():
+            ids.append(int(part.strip()))
+    if not ids:
+        return {'domains':{}}
+    with db() as c:
+        batch=active_batch(c)
+        running=set()
+        if batch:
+            running={r['domain_id'] for r in c.execute("SELECT domain_id FROM check_batch_items WHERE batch_id=? AND status='running'",(batch['id'],))}
+        marks=','.join('?' for _ in ids)
+        rows=c.execute(f'SELECT id,manual_pending,checked FROM domains WHERE id IN ({marks})',ids).fetchall()
+    return {'domains':{str(r['id']):{'pending':bool(r['manual_pending']),'checking':r['id'] in running,'checked':r['checked']} for r in rows}}
 @app.get('/changelog')
 def changelog():
     from pathlib import Path

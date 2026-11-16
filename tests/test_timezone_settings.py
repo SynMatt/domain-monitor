@@ -28,6 +28,6 @@ class TimezoneSettingsTests(Tests):
         local=m.datetime.fromtimestamp(due,ZoneInfo('Australia/Sydney'))
         self.assertEqual((local.hour,local.minute),(7,15))
     def test_version_and_changelog(self):
-        self.assertEqual(self.client.get('/health').json['version'],'0.13.8')
-        self.assertIn('## 0.13.8 - 2026-11-16',Path('/app/CHANGELOG.md').read_text())
+        self.assertEqual(self.client.get('/health').json['version'],'0.13.9')
+        self.assertIn('## 0.13.9 - 2026-11-17',Path('/app/CHANGELOG.md').read_text())
 if __name__=='__main__': unittest.main(verbosity=2)
