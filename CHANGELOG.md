@@ -1,4 +1,19 @@
 # Domain Monitor changelog
+## 0.13.8 - 2026-11-16
+
+### Added
+- Added bounded parallel domain checking with four workers by default and a supported range of one to eight.
+- Added active worker count, elapsed time, and estimated remaining seconds to Check-all progress data.
+
+### Changed
+- Check-all still permits only one batch, but up to four different domains can be checked concurrently.
+- Individual Check now requests do not duplicate domains already queued or running in the active batch.
+- Interrupted running batch items return to queued when the worker restarts.
+
+### Security
+- Each worker uses short-lived SQLite connections; database writes remain transactional and preserve revision checks.
+- `.nz` WHOIS lookups remain bounded by existing timeouts and response-size limits.
+
 ## 0.13.7 - 2026-11-16
 
 ### Added

@@ -1,5 +1,6 @@
 import os,sys,time,json,re,base64,sqlite3,secrets,subprocess,logging
 from contextlib import contextmanager
+from concurrent.futures import ThreadPoolExecutor,wait,FIRST_COMPLETED
 from datetime import datetime,timezone,timedelta
 from zoneinfo import ZoneInfo
 TIMEZONES={
@@ -42,7 +43,11 @@ from werkzeug.security import check_password_hash
 DATA=os.environ.get('DATA_DIR','/data')
 DB=DATA+'/monitor.sqlite3'
 logging.basicConfig(level=logging.INFO)
-APP_VERSION='0.13.7'
+APP_VERSION='0.13.8'
+def check_workers():
+    try: value=int(os.environ.get('CHECK_WORKERS','4'))
+    except ValueError: value=4
+    return min(8,max(1,value))
 @contextmanager
 def db():
     c=sqlite3.connect(DB,timeout=30); c.row_factory=sqlite3.Row
@@ -231,51 +236,88 @@ def batch_snapshot(c):
     if not row: return None
     counts={x['status']:x['n'] for x in c.execute('SELECT status,COUNT(*) n FROM check_batch_items WHERE batch_id=? GROUP BY status',(row['id'],))}
     complete=counts.get('complete',0); failed=counts.get('failed',0); done=complete+failed
-    return dict(id=row['id'],status=row['status'],total=row['total'],done=done,complete=complete,failed=failed,queued=counts.get('queued',0),running=counts.get('running',0),percent=round(done*100/row['total']) if row['total'] else 100)
+    elapsed=max(0,time.time()-row['created']); rate=done/elapsed if done and elapsed else 0
+    remaining=max(0,row['total']-done); eta=round(remaining/rate) if rate else None
+    return dict(id=row['id'],status=row['status'],total=row['total'],done=done,complete=complete,failed=failed,queued=counts.get('queued',0),running=counts.get('running',0),percent=round(done*100/row['total']) if row['total'] else 100,workers=check_workers(),elapsed_seconds=round(elapsed),eta_seconds=eta)
+
+def run_domain_check(row,batch_id,scheduled):
+    data={}
+    for kind in ('spf','dkim','dmarc'):
+        data[kind]=isolated(kind,row)
+    data['status']=worst(data.values())
+    data['dns_evidence']=isolated('dns_evidence',row)
+    data['dns_host']=isolated('dns_host',row)
+    data['domain_expiry']=isolated('domain_expiry',row)
+    data['configuration']={k:row[k] for k in ('domain','label','selectors','policy')}
+    data['trigger']='scheduled' if scheduled else 'manual / new or edited domain'
+    now=time.time(); encoded=json.dumps(data)
+    with db() as c:
+        due=next_run(now,get_clock(c),selected_zone(c)) if scheduled else row['due']
+        updated=c.execute('UPDATE domains SET result=?,checked=?,due=?,manual_pending=0 WHERE id=? AND revision=?',(encoded,now,due,row['id'],row['revision'])).rowcount
+        if updated:
+            c.execute('INSERT INTO history(domain_id,checked,result) VALUES(?,?,?)',(row['id'],now,encoded))
+            c.execute('DELETE FROM history WHERE domain_id=? AND id NOT IN(SELECT id FROM history WHERE domain_id=? ORDER BY id DESC LIMIT 1000)',(row['id'],row['id']))
+        if batch_id:
+            state='complete' if updated else 'failed'; error='' if updated else 'Domain changed during check.'
+            c.execute('UPDATE check_batch_items SET status=?,finished=?,error=? WHERE batch_id=? AND domain_id=?',(state,now,error,batch_id,row['id']))
+            counts=c.execute("SELECT COUNT(*) total,SUM(status IN ('complete','failed')) done FROM check_batch_items WHERE batch_id=?",(batch_id,)).fetchone()
+            finished=counts['done']>=counts['total']
+            c.execute('UPDATE check_batches SET updated=?,status=?,finished=? WHERE id=?',(now,'complete' if finished else 'active',now if finished else None,batch_id))
+        c.execute('DELETE FROM history WHERE checked<?',(now-90*86400,))
+    return row['id']
 
 def worker():
-    init()
-    while True:
-        try:
-            beat()
-            with db() as c: row=c.execute('SELECT * FROM domains WHERE manual_pending=1 OR due<=? ORDER BY due,id LIMIT 1',(time.time(),)).fetchone()
-            if row:
-                started=time.time(); batch_id=None
-                with db() as c:
-                    batch=active_batch(c)
-                    if batch:
-                        item=c.execute("SELECT status FROM check_batch_items WHERE batch_id=? AND domain_id=?",(batch['id'],row['id'])).fetchone()
-                        if item and item['status']=='queued':
-                            c.execute("UPDATE check_batch_items SET status='running',started=? WHERE batch_id=? AND domain_id=?",(started,batch['id'],row['id']))
-                            c.execute('UPDATE check_batches SET updated=? WHERE id=?',(started,batch['id']))
-                            batch_id=batch['id']
-                scheduled=row['due']<=started
-                data={}
-                for kind in ('spf','dkim','dmarc'):
-                    beat(); data[kind]=isolated(kind,row)
-                data['status']=worst(data.values())
-                beat(); data['dns_evidence']=isolated('dns_evidence',row)
-                beat(); data['dns_host']=isolated('dns_host',row)
-                beat(); data['domain_expiry']=isolated('domain_expiry',row)
-                data['configuration']={k:row[k] for k in ('domain','label','selectors','policy')}
-                data['trigger']='scheduled' if scheduled else 'manual / new or edited domain'
-                now=time.time(); encoded=json.dumps(data)
-                with db() as c:
-                    due=next_run(now,get_clock(c),selected_zone(c)) if scheduled else row['due']
-                    updated=c.execute('UPDATE domains SET result=?,checked=?,due=?,manual_pending=0 WHERE id=? AND revision=?',(encoded,now,due,row['id'],row['revision'])).rowcount
-                    if updated:
-                        c.execute('INSERT INTO history(domain_id,checked,result) VALUES(?,?,?)',(row['id'],now,encoded))
-                        c.execute('DELETE FROM history WHERE domain_id=? AND id NOT IN(SELECT id FROM history WHERE domain_id=? ORDER BY id DESC LIMIT 1000)',(row['id'],row['id']))
-                    if batch_id:
-                        state='complete' if updated else 'failed'; error='' if updated else 'Domain changed during check.'
-                        c.execute('UPDATE check_batch_items SET status=?,finished=?,error=? WHERE batch_id=? AND domain_id=?',(state,now,error,batch_id,row['id']))
-                        counts=c.execute("SELECT COUNT(*) total,SUM(status IN ('complete','failed')) done FROM check_batch_items WHERE batch_id=?",(batch_id,)).fetchone()
-                        finished=counts['done']>=counts['total']
-                        c.execute('UPDATE check_batches SET updated=?,status=?,finished=? WHERE id=?',(now,'complete' if finished else 'active',now if finished else None,batch_id))
-                    c.execute('DELETE FROM history WHERE checked<?',(now-90*86400,))
-            else: time.sleep(5)
-        except Exception:
-            logging.exception('Worker loop error'); time.sleep(10)
+    init(); workers=check_workers(); logging.info('Worker concurrency: %s',workers)
+    with db() as c:
+        c.execute("UPDATE check_batch_items SET status='queued',started=NULL WHERE status='running'")
+        batch=active_batch(c)
+        if batch: c.execute('UPDATE check_batches SET updated=? WHERE id=?',(time.time(),batch['id']))
+    futures={}
+    with ThreadPoolExecutor(max_workers=workers,thread_name_prefix='domain-check') as pool:
+        while True:
+            try:
+                beat()
+                done,_=wait(tuple(futures),timeout=0,return_when=FIRST_COMPLETED) if futures else (set(),set())
+                for future in done:
+                    ident=futures.pop(future)
+                    try: future.result()
+                    except Exception:
+                        logging.exception('Domain check failed for id %s',ident)
+                        now=time.time()
+                        with db() as c:
+                            c.execute('UPDATE domains SET manual_pending=0 WHERE id=?',(ident,))
+                            item=c.execute("SELECT batch_id FROM check_batch_items WHERE domain_id=? AND status='running' ORDER BY batch_id DESC LIMIT 1",(ident,)).fetchone()
+                            if item:
+                                c.execute("UPDATE check_batch_items SET status='failed',finished=?,error=? WHERE batch_id=? AND domain_id=?",(now,'Unhandled worker error',item['batch_id'],ident))
+                                counts=c.execute("SELECT COUNT(*) total,SUM(status IN ('complete','failed')) done FROM check_batch_items WHERE batch_id=?",(item['batch_id'],)).fetchone()
+                                finished=counts['done']>=counts['total']
+                                c.execute('UPDATE check_batches SET updated=?,status=?,finished=? WHERE id=?',(now,'complete' if finished else 'active',now if finished else None,item['batch_id']))
+                busy=set(futures.values())
+                while len(futures)<workers:
+                    now=time.time()
+                    with db() as c:
+                        placeholders=','.join('?' for _ in busy)
+                        sql='SELECT * FROM domains WHERE (manual_pending=1 OR due<=?)'
+                        params=[now]
+                        if busy:
+                            sql+=f' AND id NOT IN ({placeholders})'; params.extend(sorted(busy))
+                        sql+=' ORDER BY manual_pending DESC,due,id LIMIT 1'
+                        row=c.execute(sql,params).fetchone()
+                        if not row: break
+                        row=dict(row); started=time.time(); batch_id=None
+                        batch=active_batch(c)
+                        if batch:
+                            item=c.execute("SELECT status FROM check_batch_items WHERE batch_id=? AND domain_id=?",(batch['id'],row['id'])).fetchone()
+                            if item and item['status']=='queued':
+                                c.execute("UPDATE check_batch_items SET status='running',started=? WHERE batch_id=? AND domain_id=?",(started,batch['id'],row['id']))
+                                c.execute('UPDATE check_batches SET updated=? WHERE id=?',(started,batch['id']))
+                                batch_id=batch['id']
+                        scheduled=row['due']<=started
+                    future=pool.submit(run_domain_check,row,batch_id,scheduled)
+                    futures[future]=row['id']; busy.add(row['id'])
+                time.sleep(0.5 if futures else 5)
+            except Exception:
+                logging.exception('Worker coordinator error'); time.sleep(5)
 app=Flask(__name__)
 app.jinja_env.globals['dns_host_label']=dns_host_label
 app.jinja_env.globals['expiry_label']=domain_expiry.label
@@ -408,8 +450,10 @@ def queue(ident):
     with db() as c:
         exists=c.execute('SELECT 1 FROM domains WHERE id=?',(ident,)).fetchone()
         if not exists: abort(404)
-        added=c.execute('UPDATE domains SET manual_pending=1,revision=revision+1 WHERE id=? AND manual_pending=0',(ident,)).rowcount
-    flash('Check queued. Refresh shortly.' if added else 'Check already queued. Daily schedule unchanged.')
+        batch=active_batch(c)
+        included=batch and c.execute("SELECT 1 FROM check_batch_items WHERE batch_id=? AND domain_id=? AND status IN ('queued','running')",(batch['id'],ident)).fetchone()
+        added=0 if included else c.execute('UPDATE domains SET manual_pending=1,revision=revision+1 WHERE id=? AND manual_pending=0',(ident,)).rowcount
+    flash('Already included in the active Check-all run.' if included else 'Check queued. Refresh shortly.' if added else 'Check already queued. Daily schedule unchanged.')
     target=request.form.get('next','')
     if not target.startswith('/') or target.startswith('//'):
         target=f'/domain/{ident}'
