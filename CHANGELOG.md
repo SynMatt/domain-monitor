@@ -1,4 +1,13 @@
 # Domain Monitor changelog
+## 0.13.7 - 2026-11-16
+
+### Added
+- Added dashboard search by friendly DNS host/provider name and cached nameserver hostname.
+
+### Changed
+- Updated the search label and example to show that DNS hosts such as Cloudflare and Microsoft can be searched.
+- DNS-host searching uses cached check results and custom provider mappings without performing DNS lookups during page loads.
+
 ## 0.13.6 - 2026-11-16
 
 ### Fixed

@@ -7,9 +7,9 @@ class GenericPlaceholderTests(Tests):
     def test_placeholder_is_generic(self):
         self.auth()
         page=self.client.get('/')
-        self.assertIn(b'e.g. example.com or client name',page.data)
+        self.assertIn(b'e.g. example.com, client name or Cloudflare',page.data)
         self.assertNotIn(b'example-company',page.data.lower())
     def test_version_and_changelog(self):
-        self.assertEqual(self.client.get('/health').json['version'],'0.13.6')
-        self.assertIn('## 0.13.6 - 2026-11-16',Path('/app/CHANGELOG.md').read_text())
+        self.assertEqual(self.client.get('/health').json['version'],'0.13.7')
+        self.assertIn('## 0.13.7 - 2026-11-16',Path('/app/CHANGELOG.md').read_text())
 if __name__=='__main__': unittest.main(verbosity=2)

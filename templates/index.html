@@ -6,7 +6,7 @@
 {% endfor %}
 </section><p class="muted">Green: passes checks · Red: missing, invalid or below policy · Amber: warnings · Grey: unknown/error. Stale results are not current health.</p><form class="dashboard-controls" method="get" action="/">
 {% if filter_kind %}<input type="hidden" name="kind" value="{{filter_kind}}"><input type="hidden" name="status" value="{{filter_status}}">{% endif %}
-<div><label for="q">Search domain or client label</label><input id="q" name="q" value="{{search_query}}" maxlength="100" placeholder="e.g. example.com or client name"></div>
+<div><label for="q">Search domain, client label or DNS host</label><input id="q" name="q" value="{{search_query}}" maxlength="100" placeholder="e.g. example.com, client name or Cloudflare"></div>
 <div><label for="sort">Sort</label><select id="sort" name="sort"><option value="domain" {{'selected' if sort_mode=='domain' else ''}}>Domain A-Z</option><option value="severity" {{'selected' if sort_mode=='severity' else ''}}>Failures first</option><option value="last_checked" {{'selected' if sort_mode=='last_checked' else ''}}>Last checked, newest first</option><option value="next_due" {{'selected' if sort_mode=='next_due' else ''}}>Next scheduled check</option></select></div>
 <div class="control-buttons"><button>Apply</button>{% if search_query or filter_kind or sort_mode!='domain' %}<a class="button" href="/">Reset all</a>{% endif %}</div>
 </form>

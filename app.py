@@ -42,7 +42,7 @@ from werkzeug.security import check_password_hash
 DATA=os.environ.get('DATA_DIR','/data')
 DB=DATA+'/monitor.sqlite3'
 logging.basicConfig(level=logging.INFO)
-APP_VERSION='0.13.6'
+APP_VERSION='0.13.7'
 @contextmanager
 def db():
     c=sqlite3.connect(DB,timeout=30); c.row_factory=sqlite3.Row
@@ -327,7 +327,13 @@ def index():
     domains=[]; now=time.time()
     for r in rows:
         d=dict(r); d['data']=json.loads(r['result']) if r['result'] else None
-        d['stale']=bool(r['checked'] and now-r['checked']>26*3600); domains.append(d)
+        d['stale']=bool(r['checked'] and now-r['checked']>26*3600)
+        # Use the same database-backed provider label as the card display.
+        # This includes built-in and custom DNS provider mappings.
+        d['dns_host_search']=app.jinja_env.globals['dns_host_label'](d['data'])
+        host=(d['data'] or {}).get('dns_host') or {}
+        d['dns_nameserver_search']=' '.join(str(x) for x in host.get('nameservers',[]) if isinstance(x,str))
+        domains.append(d)
     summary={kind:{status:0 for status in ('pass','warn','fail','unknown')} for kind in ('spf','dkim','dmarc')}
     for d in domains:
         for kind in summary:
@@ -356,7 +362,9 @@ def index():
         filtered_domains=[d for d in filtered_domains if displayed_status(d,filter_kind)==filter_status]
     if search_query:
         needle=search_query.casefold()
-        filtered_domains=[d for d in filtered_domains if needle in d['domain'].casefold() or needle in (d['label'] or '').casefold()]
+        filtered_domains=[d for d in filtered_domains if any(needle in value.casefold() for value in (
+            d['domain'], d['label'] or '', d['dns_host_search'] or '', d['dns_nameserver_search'] or ''
+        ))]
     severity={'fail':0,'unknown':1,'warn':2,'pass':3}
     def severity_key(d):
         states=[displayed_status(d,k) for k in valid_kinds]
