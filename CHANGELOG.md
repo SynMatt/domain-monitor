@@ -1,4 +1,14 @@
 # Domain Monitor changelog
+## 0.13.6 - 2026-11-16
+
+### Fixed
+- Restored the exact dashboard scroll position after Check now instead of re-centering the domain card.
+- Refresh now preserves the current dashboard scroll position as well as search, filters, and sorting.
+- Saved dashboard positions expire after two minutes and remain limited to the current browser tab.
+
+### Changed
+- Added an explicit dashboard Refresh hook without inline JavaScript or external dependencies.
+
 ## 0.13.5 - 2026-11-16
 
 ### Added

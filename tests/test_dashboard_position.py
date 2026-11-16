@@ -11,7 +11,10 @@ class DashboardPositionTests(Tests):
   self.assertIn("script-src 'self'",csp)
   self.assertNotIn("'unsafe-inline'",csp.split('script-src',1)[1].split(';',1)[0])
   script=Path('/app/static/dashboard-position.js').read_text()
-  self.assertIn('sessionStorage',script); self.assertIn('scrollIntoView',script)
+  self.assertIn('sessionStorage',script)
+  self.assertIn('window.scrollY',script)
+  self.assertIn('window.scrollTo',script)
+  self.assertNotIn('scrollIntoView',script)
   self.assertIn('header{position:sticky;top:0;',Path('/app/templates/base.html').read_text())
  def test_pending_card_feedback(self):
   self.auth(); self.add()
