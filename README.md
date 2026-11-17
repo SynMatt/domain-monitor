@@ -102,6 +102,8 @@ The private `.env` file controls the deployment. Do not commit it.
 ```dotenv
 HOST_BIND_IP='127.0.0.1'
 HOST_PORT='8282'
+RESOURCE_TUNING='auto'
+# Set automatically by the tuner. Example values for a 2-core host:
 CHECK_WORKERS='4'
 CONTAINER_CPUS='2'
 ```
@@ -120,15 +122,17 @@ Keep secrets such as `SECRET_KEY` and `ADMIN_PASSWORD_HASH` only in `.env` or an
 
 Since version `0.14.0`, all checks for one domain run in a single child process. This significantly reduces application startup overhead.
 
-`scripts/tune-resources.sh` picks these values from the CPU cores and memory Docker can see. On Hyper-V virtual machines it uses CPU cores only, because Dynamic Memory makes the memory reading change from minute to minute:
+`scripts/tune-resources.sh` sets `CHECK_WORKERS` and `CONTAINER_CPUS` from the CPU cores and memory Docker can see. It runs during setup and on every update.
 
-| Host resources | `CHECK_WORKERS` | `CONTAINER_CPUS` |
-|---|---:|---:|
+| Host | `CHECK_WORKERS` | `CONTAINER_CPUS` |
+|---|---|---|
 | 1 CPU core, or under 3 GB RAM | 2 | Same as cores |
-| 2–3 CPU cores, 3 GB+ RAM | 4 | Same as cores |
-| 4+ CPU cores, 3 GB+ RAM | 4 | 4 |
+| 2–3 CPU cores | 4 | Same as cores |
+| 4+ CPU cores | 4 | 4 |
 
-The tuner runs during setup (`set-admin-password.sh`) and on every update. To check or re-apply it at any time:
+On Hyper-V virtual machines only CPU cores are used, because Dynamic Memory makes the memory reading unreliable. `CONTAINER_CPUS` is never set higher than the host's cores.
+
+Check or re-apply the settings:
 
 ```bash
 cd /opt/domain-monitor
@@ -136,38 +140,21 @@ sudo ./scripts/tune-resources.sh --dry-run   # show what would change
 sudo ./scripts/tune-resources.sh             # apply and recreate containers
 ```
 
-`CONTAINER_CPUS` is never left higher than the host's cores, because Docker refuses to start containers when it is.
-
-To use your own values, also set `RESOURCE_TUNING='manual'` so the tuner keeps them. Example for a larger host:
+To use your own values, set `RESOURCE_TUNING='manual'` so the tuner keeps them. Example for a larger host:
 
 ```bash
 cd /opt/domain-monitor
-
-sudo sed -i '/^CHECK_WORKERS=/d; /^CONTAINER_CPUS=/d' .env
-sudo sh -c "printf \"\nCHECK_WORKERS='4'\nCONTAINER_CPUS='4'\n\" >> .env"
+sudo sed -i '/^CHECK_WORKERS=/d; /^CONTAINER_CPUS=/d; /^RESOURCE_TUNING=/d' .env
+printf "CHECK_WORKERS='4'\nCONTAINER_CPUS='4'\nRESOURCE_TUNING='manual'\n" | sudo tee -a .env >/dev/null
 sudo chmod 600 .env
-
-sudo docker compose up -d \
-  --force-recreate \
-  --wait \
-  --wait-timeout 180
+sudo docker compose up -d --force-recreate --wait --wait-timeout 180
 ```
 
-Verify the worker count:
+Verify the worker count and CPU limit:
 
 ```bash
-sudo docker compose exec -T worker python -c \
-  'import app; print("Workers:", app.check_workers())'
-```
-
-Verify the CPU limit:
-
-```bash
-WORKER_ID=$(sudo docker compose ps -q worker)
-
-sudo docker inspect \
-  --format 'CPU limit: {{.HostConfig.NanoCpus}}' \
-  "$WORKER_ID"
+sudo docker compose exec -T worker python -c 'import app; print("Workers:", app.check_workers())'
+sudo docker inspect --format 'CPU limit: {{.HostConfig.NanoCpus}}' "$(sudo docker compose ps -q worker)"
 ```
 
 A four-core limit appears as `4000000000` nanocpus.
@@ -221,13 +208,19 @@ Keep a separate off-host copy of important backups. A local backup does not prot
 
 ## 🗂️ History and database size
 
-Every check is saved to the domain's history, which is shown under **Details & history**. That page shows a summary (overall status, last checked, DNS host and expiry), the current SPF, DKIM and DMARC results side by side, and a collapsed history list. Each history entry shows its date, statuses and what changed since the entry before it, such as *DKIM pass → warn* or *SPF record changed*; select it to see full details.
+Select **Details & history** on a domain card to see:
 
-- **Identical results are grouped.** When a check gives the same result as the one before, the existing entry is extended instead of adding a new one. It shows as *Same result for N checks since …*. Timing, trigger and cache details are ignored when comparing.
-- **Full DNS detail is kept for the newest entry only.** Older entries keep statuses, messages, warnings and records, and show *Summary only* under DNS evidence.
-- **Limits:** up to 90 days and 1,000 entries per domain.
+- **Summary tiles:** overall status, last checked, DNS host and domain expiry.
+- **Current status:** the latest SPF, DKIM and DMARC results side by side, with warnings and technical details.
+- **History:** one collapsed line per entry showing its date, statuses and what changed since the entry before it, such as *DKIM pass → warn* or *SPF record changed*. Select a line to see the full result.
 
-Version 0.14.2 slimmed existing history once and reclaimed the space, so the database is much smaller after upgrading from an earlier release. No entries are deleted. To check the size:
+To keep the database small:
+
+- When a check gives the same result as the one before, that entry is extended instead of adding a new one. It shows *Same result for N checks since …*.
+- Full DNS detail is kept for the newest entry only. Older entries show *Summary only* under DNS evidence.
+- History is kept for up to 90 days and 1,000 entries per domain.
+
+Check the database size:
 
 ```bash
 cd /opt/domain-monitor
@@ -278,22 +271,20 @@ Domain Monitor records the recursive answer and authoritative DNS evidence. Comp
 
 ### Update fails with "range of CPUs is from 0.01 to N"
 
-`CONTAINER_CPUS` in `.env` is higher than the number of CPU cores the host has, so Docker refuses to start the containers. Let the tuner fix it, then run the update again:
+`CONTAINER_CPUS` in `.env` is higher than the host's CPU cores. Fix it with the tuner, then run the update again:
 
 ```bash
 cd /opt/domain-monitor
 sudo ./scripts/tune-resources.sh
 ```
 
-From 0.14.3 the updater does this automatically before building.
-
 ### The tuner shows much less memory than the VM has
 
-On Hyper-V with **Dynamic Memory**, Linux only sees the memory currently assigned, which goes up and down. Since 0.14.4 the tuner detects Hyper-V and decides from CPU cores only. If you want the reading to be stable as well, turn off Dynamic Memory in the VM's settings and give it a fixed amount.
+On Hyper-V with **Dynamic Memory**, Linux only sees the memory currently assigned. The tuner detects Hyper-V and uses CPU cores only, so this does not affect its choices.
 
-### Test output during updates
+### Seeing hidden test output
 
-Some tests deliberately make checks time out or crash to prove they are handled. Their log lines are hidden, so a passing update shows only dots and `OK`. To see them when investigating a failure:
+Tests that deliberately make checks time out or crash have their log lines hidden, so a passing run shows only dots and `OK`. To see them:
 
 ```bash
 cd /opt/domain-monitor-github
@@ -331,7 +322,7 @@ Use a separate development checkout. Every application change must include:
 - Version update
 - Changelog entry using **Added**, **Changed**, **Fixed**, **Removed**, or **Security** as appropriate
 - Regression tests
-- README updated for every user-visible change: features, settings, scripts and troubleshooting. Then set the review marker at the end of this file to the new version. A test fails the build if the marker or a changelog README line is missing.
+- README updated for user-visible changes, with its review marker set to the new version
 - Candidate Docker build and complete test-suite pass before tagging
 
 Run the full suite from a development checkout with `./scripts/run-tests.sh`. Add a name to run only matching tests, for example `./scripts/run-tests.sh history`.
@@ -342,12 +333,12 @@ Release tags use semantic versioning, for example `v0.14.0`.
 
 Licensed under the MIT License. See [LICENSE](LICENSE).
 
-<!-- README reviewed for release: 0.14.6 -->
+<!-- README reviewed for release: 0.14.7 -->
 
 <!-- BEGIN UPDATE COMMANDS -->
 ## Updating Domain Monitor
 
-Latest documented release: **v0.14.6**
+Latest documented release: **v0.14.7**
 
 Run these commands through SSH on the application host, not in a separate development checkout. Adjust the directory if your installation uses another path.
 
@@ -369,7 +360,7 @@ sudo ./scripts/update.sh
 
 ```bash
 cd /opt/domain-monitor
-sudo ./scripts/update.sh --version 0.14.6
+sudo ./scripts/update.sh --version 0.14.7
 ```
 
 ### Verify the deployment

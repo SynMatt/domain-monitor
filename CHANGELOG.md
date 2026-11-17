@@ -1,4 +1,11 @@
 # Domain Monitor changelog
+## 0.14.7 - 2026-11-17
+### Fixed
+- README: the manual example for a larger host now sets `RESOURCE_TUNING='manual'`. Without it the tuner replaced the values on the next update.
+- README: the configuration example now shows `RESOURCE_TUNING='auto'` and labels `CHECK_WORKERS` and `CONTAINER_CPUS` as set automatically, instead of presenting them as fixed values.
+### Changed
+- README: rewrote the History section to describe the 0.14.6 details page (summary tiles, side-by-side results and the change list).
+- README: shortened the performance and troubleshooting sections and removed release-by-release notes, which belong in the changelog.
 ## 0.14.6 - 2026-11-17
 ### Changed
 - Redesigned the domain details page. The top shows Overall status, Last checked, DNS host and Current domain expiry as tiles, with Edit settings and Check now beside the domain name.
