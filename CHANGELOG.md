@@ -1,4 +1,13 @@
 # Domain Monitor changelog
+## 0.14.6 - 2026-11-17
+### Changed
+- Redesigned the domain details page. The top shows Overall status, Last checked, DNS host and Current domain expiry as tiles, with Edit settings and Check now beside the domain name.
+- Current SPF, DKIM and DMARC results are shown once, side by side, with a coloured edge for their status. Warnings are listed under each result.
+- History is a compact list of collapsed entries. Each shows the date, overall and per-check status, the trigger, grouped check count, and what changed since the entry before it. Select an entry for its full details.
+- Nameservers now appear under DNS host instead of under Domain expiry.
+- Updated the README History section and the templates README to describe the new details page.
+### Fixed
+- The details page no longer starts the subtitle with a stray separator when a domain has no client label.
 ## 0.14.5 - 2026-11-17
 ### Fixed
 - The README's Updating section showed `--version 0.14.0` as the example release. Hand-written examples now use `X.Y.Z` and point to the changelog; only the generated commands at the end of the README show the current version.

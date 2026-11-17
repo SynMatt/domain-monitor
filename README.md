@@ -221,7 +221,7 @@ Keep a separate off-host copy of important backups. A local backup does not prot
 
 ## 🗂️ History and database size
 
-Every check is saved to the domain's history, which is shown under **Details & history**.
+Every check is saved to the domain's history, which is shown under **Details & history**. That page shows a summary (overall status, last checked, DNS host and expiry), the current SPF, DKIM and DMARC results side by side, and a collapsed history list. Each history entry shows its date, statuses and what changed since the entry before it, such as *DKIM pass → warn* or *SPF record changed*; select it to see full details.
 
 - **Identical results are grouped.** When a check gives the same result as the one before, the existing entry is extended instead of adding a new one. It shows as *Same result for N checks since …*. Timing, trigger and cache details are ignored when comparing.
 - **Full DNS detail is kept for the newest entry only.** Older entries keep statuses, messages, warnings and records, and show *Summary only* under DNS evidence.
@@ -342,12 +342,12 @@ Release tags use semantic versioning, for example `v0.14.0`.
 
 Licensed under the MIT License. See [LICENSE](LICENSE).
 
-<!-- README reviewed for release: 0.14.5 -->
+<!-- README reviewed for release: 0.14.6 -->
 
 <!-- BEGIN UPDATE COMMANDS -->
 ## Updating Domain Monitor
 
-Latest documented release: **v0.14.5**
+Latest documented release: **v0.14.6**
 
 Run these commands through SSH on the application host, not in a separate development checkout. Adjust the directory if your installation uses another path.
 
@@ -369,7 +369,7 @@ sudo ./scripts/update.sh
 
 ```bash
 cd /opt/domain-monitor
-sudo ./scripts/update.sh --version 0.14.5
+sudo ./scripts/update.sh --version 0.14.6
 ```
 
 ### Verify the deployment

@@ -43,7 +43,7 @@ from werkzeug.security import check_password_hash
 DATA=os.environ.get('DATA_DIR','/data')
 DB=DATA+'/monitor.sqlite3'
 logging.basicConfig(level=logging.INFO)
-APP_VERSION='0.14.5'
+APP_VERSION='0.14.6'
 def check_workers():
     try: value=int(os.environ.get('CHECK_WORKERS','4'))
     except ValueError: value=4
@@ -458,7 +458,27 @@ app.jinja_env.globals['dns_host_label']=dns_host_label
 app.jinja_env.globals['expiry_label']=domain_expiry.label
 app.jinja_env.globals['expiry_class']=domain_expiry.css_class
 app.jinja_env.globals['expiry_source']=domain_expiry.source_label
+def history_changes(newer,older):
+    """Plain-English list of what differs between a history entry and the one before it."""
+    if not isinstance(newer,dict) or not isinstance(older,dict): return []
+    changes=[]
+    for kind in ('spf','dkim','dmarc'):
+        new=newer.get(kind) or {}; old=older.get(kind) or {}
+        if new.get('status')!=old.get('status'):
+            changes.append(f"{kind.upper()} {old.get('status','unknown')} → {new.get('status','unknown')}")
+            continue
+        if kind=='dkim':
+            pick=lambda r:[(s.get('selector'),s.get('record'),s.get('status')) for s in r.get('selectors') or []]
+        else:
+            pick=lambda r:(r.get('raw') or {}).get('record')
+        if pick(new)!=pick(old): changes.append(f'{kind.upper()} record changed')
+    if (newer.get('dns_host') or {}).get('nameservers')!=(older.get('dns_host') or {}).get('nameservers'):
+        changes.append('DNS host changed')
+    if (newer.get('domain_expiry') or {}).get('expires_at')!=(older.get('domain_expiry') or {}).get('expires_at'):
+        changes.append('Expiry date changed')
+    return changes
 app.jinja_env.globals['app_version']=APP_VERSION
+app.jinja_env.globals['history_changes']=history_changes
 app.secret_key=os.environ.get('SECRET_KEY','')
 app.config.update(MAX_CONTENT_LENGTH=16384,SESSION_COOKIE_HTTPONLY=True,SESSION_COOKIE_SAMESITE='Strict',PERMANENT_SESSION_LIFETIME=timedelta(hours=8))
 @app.template_filter('stamp')
