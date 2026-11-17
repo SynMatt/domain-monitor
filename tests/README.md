@@ -27,3 +27,4 @@ Run the complete suite in the built container so the tests use the same pinned d
 | `test_release_metadata.py` | Displayed and reported versions come from APP_VERSION, and the changelog starts with the current release. |
 | `test_release_0143.py` | Host-fitted CPU and worker settings, manual override, dry run, settings preserved, and setup/update wiring. |
 | `test_release_0144.py` | README review marker and changelog README line for every release, documented scripts, Hyper-V tuning, and hidden expected test logs. |
+| `test_release_0145.py` | README update examples outside the generated block use `X.Y.Z`, never a real release number. |

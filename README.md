@@ -192,8 +192,10 @@ sudo ./scripts/update.sh
 Install a specific release:
 
 ```bash
-sudo ./scripts/update.sh --version 0.14.0
+sudo ./scripts/update.sh --version X.Y.Z
 ```
+
+Replace `X.Y.Z` with a version from the [changelog](CHANGELOG.md). The commands at the end of this README always show the current release.
 
 The updater creates a verified backup, builds the selected release, runs tests, recreates the containers, and verifies the running version, image, binding, and database. If validation fails, it attempts an automatic rollback.
 
@@ -340,12 +342,12 @@ Release tags use semantic versioning, for example `v0.14.0`.
 
 Licensed under the MIT License. See [LICENSE](LICENSE).
 
-<!-- README reviewed for release: 0.14.4 -->
+<!-- README reviewed for release: 0.14.5 -->
 
 <!-- BEGIN UPDATE COMMANDS -->
 ## Updating Domain Monitor
 
-Latest documented release: **v0.14.4**
+Latest documented release: **v0.14.5**
 
 Run these commands through SSH on the application host, not in a separate development checkout. Adjust the directory if your installation uses another path.
 
@@ -367,7 +369,7 @@ sudo ./scripts/update.sh
 
 ```bash
 cd /opt/domain-monitor
-sudo ./scripts/update.sh --version 0.14.4
+sudo ./scripts/update.sh --version 0.14.5
 ```
 
 ### Verify the deployment

@@ -1,4 +1,9 @@
 # Domain Monitor changelog
+## 0.14.5 - 2026-11-17
+### Fixed
+- The README's Updating section showed `--version 0.14.0` as the example release. Hand-written examples now use `X.Y.Z` and point to the changelog; only the generated commands at the end of the README show the current version.
+### Added
+- Added a test that fails the build if a real version number appears in a README update example outside the generated block, so examples cannot go stale again.
 ## 0.14.4 - 2026-11-17
 ### Changed
 - On Hyper-V virtual machines the resource tuner decides from CPU cores only. Dynamic Memory made the memory reading change between runs, which could switch `CHECK_WORKERS` between 2 and 4.
