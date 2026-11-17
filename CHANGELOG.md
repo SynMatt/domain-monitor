@@ -1,4 +1,12 @@
 # Domain Monitor changelog
+## 0.14.1 - 2026-11-17
+### Added
+- Added `scripts/monitor-check-all.sh`, a read-only Check-all monitor showing live progress, CPU and memory use, domains per minute, seconds per domain and the slowest domains. Slow-domain timings use the real one-process check path.
+- Added `scripts/cleanup-images.sh` to remove old Docker image tags after a preview and confirmation, keeping the configured release, the two newest older releases and any image used by a container.
+- Added `docs/maintenance.md`.
+### Fixed
+- The monitor's live progress line no longer fails with a Python quoting error.
+- The monitor no longer times the six checks as separate processes, which overstated per-domain time after 0.14.0.
 ## 0.14.0 - 2026-11-17
 ### Changed
 - Each domain is now checked in one child process instead of six, removing five application start-ups per domain. Measured start-up cost was 4-6 seconds each, which dominated check time.

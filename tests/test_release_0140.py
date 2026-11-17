@@ -96,6 +96,6 @@ class Release0140Tests(Tests):
         self.assertIn("CONTAINER_CPUS='2'",Path('/app/.env.example').read_text())
 
     def test_version(self):
-        self.assertEqual(self.client.get('/health').json['version'],'0.14.0')
+        self.assertEqual(self.client.get('/health').json['version'],'0.14.1')
 
 if __name__=='__main__': unittest.main(verbosity=2)
