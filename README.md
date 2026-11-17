@@ -154,3 +154,74 @@ Microsoft 365 nameservers under `bdm.microsoftonline.com` display as **Microsoft
 ## DNS provider directory
 
 Open Settings, then Manage DNS providers. Add a nameserver suffix (for example `dns.example.net`) and a friendly provider name. Custom mappings take precedence over built-in mappings and immediately affect cached card labels. Edit names or delete mappings from the same page. Mappings are stored in the SQLite database and included in backups. No page-load DNS requests or external AI lookups are made. Full nameservers remain in Details & history. Suggested suffixes are conservative hostname hints, not verified company identities or registrable-domain calculations.
+
+## Performance and host sizing
+
+Since version 0.14.0, Domain Monitor runs all checks for one domain in a single child process, substantially reducing startup overhead.
+
+The default settings are suitable for most small installations:
+
+```dotenv
+CHECK_WORKERS='4'
+CONTAINER_CPUS='2'
+```
+
+- `CHECK_WORKERS` controls how many domains are checked concurrently.
+- `CONTAINER_CPUS` controls the maximum CPU cores available to each container.
+- Do not set `CONTAINER_CPUS` higher than the CPU cores available to Docker.
+- Start conservatively and increase the values only after measuring a complete Check-all run.
+
+Suggested starting values:
+
+| Host resources | CHECK_WORKERS | CONTAINER_CPUS |
+|---|---:|---:|
+| 1-2 CPU cores, 2 GB RAM | 2 | 1 |
+| 2-4 CPU cores, 4 GB RAM | 4 | 2 |
+| 4+ CPU cores, 8 GB RAM | 4 | 4 |
+
+For an existing installation, update the private `.env` file:
+
+```bash
+cd /opt/domain-monitor
+
+sudo sed -i \
+  '/^CHECK_WORKERS=/d; /^CONTAINER_CPUS=/d' \
+  .env
+
+sudo sh -c \
+  "printf \"\nCHECK_WORKERS='4'\nCONTAINER_CPUS='4'\n\" >> .env"
+
+sudo chmod 600 .env
+
+sudo docker compose up -d \
+  --force-recreate \
+  --wait \
+  --wait-timeout 180
+```
+
+Verify the worker count:
+
+```bash
+sudo docker compose exec -T worker python -c \
+  'import app; print("Workers:", app.check_workers())'
+```
+
+Verify the worker CPU limit:
+
+```bash
+WORKER_ID=$(sudo docker compose ps -q worker)
+
+sudo docker inspect \
+  --format 'CPU limit: {{.HostConfig.NanoCpus}}' \
+  "$WORKER_ID"
+```
+
+A four-core limit appears as:
+
+```text
+CPU limit: 4000000000
+```
+
+In one measured deployment, Domain Monitor processed 164 domains in approximately 1.2 minutes using four workers and a four-core container limit. Results vary depending on the host, DNS response times, configured DKIM selectors, and registry services.
+
+Existing installations preserve their private `.env` during upgrades. If `CONTAINER_CPUS` is absent, Docker Compose uses the default of two cores.
