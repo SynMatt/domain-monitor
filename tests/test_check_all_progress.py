@@ -1,5 +1,5 @@
 import time,unittest
-from test_app import Tests
+from test_app import Base as Tests
 import app as m
 class BatchTests(Tests):
  def add_name(self,n): return self.post('/new',domain=n,label='',selectors='',policy='quarantine')

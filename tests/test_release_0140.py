@@ -1,7 +1,8 @@
 import json,os,subprocess,sys,time,unittest
 from pathlib import Path
 from unittest.mock import patch
-from test_app import Tests
+from test_app import Base as Tests
+from app import APP_VERSION
 import app as m
 
 class Release0140Tests(Tests):
@@ -96,6 +97,6 @@ class Release0140Tests(Tests):
         self.assertIn("CONTAINER_CPUS='2'",Path('/app/.env.example').read_text())
 
     def test_version(self):
-        self.assertEqual(self.client.get('/health').json['version'],'0.14.1')
+        self.assertEqual(self.client.get('/health').json['version'],APP_VERSION)
 
 if __name__=='__main__': unittest.main(verbosity=2)

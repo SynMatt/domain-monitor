@@ -7,7 +7,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 
-USER_AGENT='Domain-Monitor/0.13.2 (+https://github.com/SynMatt/domain-monitor)'
+USER_AGENT='Domain-Monitor (+https://github.com/SynMatt/domain-monitor)'
 MAX_RESPONSE=1024*1024
 NZ_WHOIS_HOST='whois.irs.net.nz'
 
@@ -98,7 +98,9 @@ def _rdap(domain, now):
             'User-Agent':USER_AGENT,
         },
     )
-    with urlopen(request,timeout=10) as response:
+    if not request.full_url.startswith('https://'):
+        raise ValueError('RDAP lookups must use HTTPS')
+    with urlopen(request,timeout=10) as response:  # nosec B310 - HTTPS enforced above
         body=response.read(MAX_RESPONSE+1)
     if len(body)>MAX_RESPONSE:
         raise ValueError('RDAP response too large')

@@ -1,7 +1,8 @@
 import json,time,unittest
 from pathlib import Path
 from unittest.mock import patch
-from test_app import Tests
+from test_app import Base as Tests
+from app import APP_VERSION
 import app as m
 import dns_evidence as ev
 
@@ -95,6 +96,6 @@ class Release0139Tests(Tests):
         self.assertNotIn('innerHTML',script)
 
     def test_version(self):
-        self.assertEqual(self.client.get('/health').json['version'],'0.14.1')
+        self.assertEqual(self.client.get('/health').json['version'],APP_VERSION)
 
 if __name__=='__main__': unittest.main(verbosity=2)

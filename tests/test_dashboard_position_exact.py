@@ -1,6 +1,6 @@
 import unittest
 from pathlib import Path
-from test_app import Tests
+from test_app import Base as Tests
 
 class DashboardPositionExactTests(Tests):
  def test_exact_scroll_and_refresh_hook(self):

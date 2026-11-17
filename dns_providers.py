@@ -1,7 +1,7 @@
 """Database-backed DNS provider display mappings; no page-load DNS requests."""
 import json
 import re
-from flask import g, request, render_template, redirect, flash, abort
+from flask import g, request, render_template, redirect, flash
 
 KEY = 'dns_provider_mappings_v1'
 BUILTINS = {'dnspackage.com': 'Crazy Domains', 'hosting-cloud.net': 'DreamIT Host'}

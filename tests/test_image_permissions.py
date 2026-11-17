@@ -1,11 +1,12 @@
 import os
 import unittest
 from pathlib import Path
-from test_app import Tests
+from test_app import Base as Tests
+from app import APP_VERSION
 
 class ImagePermissionTests(Tests):
     def test_version(self):
-        self.assertEqual(self.client.get('/health').json['version'],'0.14.1')
+        self.assertEqual(self.client.get('/health').json['version'],APP_VERSION)
 
     def test_test_files_are_world_readable(self):
         for path in Path('/app/tests').glob('test_*.py'):

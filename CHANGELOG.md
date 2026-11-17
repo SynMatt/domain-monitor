@@ -1,4 +1,21 @@
 # Domain Monitor changelog
+## 0.14.2 - 2026-11-17
+### Changed
+- History keeps full DNS diagnostics only on each domain's newest entry. Older entries keep statuses, messages, warnings and records, without the expanded SPF include tree or raw resolver timings.
+- Consecutive checks with the same result now extend one history entry, shown as Same result for N checks, instead of adding a row every time. Timing, trigger and cache details are ignored when comparing.
+- Existing history is compacted once when the worker starts, then the database is vacuumed to reclaim space. No history entries are deleted.
+- The test suite runs in one container and one process. Shared test fixtures no longer re-run the core tests in every file.
+- The version shown in the page header now comes from APP_VERSION, and tests no longer hard-code the release number.
+### Added
+- Added `scripts/run-tests.sh` to build a candidate image and run the full suite once, with an optional test-name filter.
+- DNS evidence now says when a nameserver has no IPv4 or IPv6 address instead of leaving the error blank.
+### Fixed
+- Removed unused imports reported by pyflakes.
+- The expiry lookup User-Agent no longer reports an old version.
+### Security
+- Updated Flask to 3.1.3 (PYSEC-2026-2151).
+- RDAP expiry lookups refuse any URL that is not HTTPS.
+- Marked the reviewed subprocess, SQL placeholder and sort-order patterns so security scans show only new findings.
 ## 0.14.1 - 2026-11-17
 ### Added
 - Added `scripts/monitor-check-all.sh`, a read-only Check-all monitor showing live progress, CPU and memory use, domains per minute, seconds per domain and the slowest domains. Slow-domain timings use the real one-process check path.

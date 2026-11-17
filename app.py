@@ -1,7 +1,7 @@
-import os,sys,time,json,re,base64,sqlite3,secrets,subprocess,logging
+import os,sys,time,json,re,base64,sqlite3,secrets,subprocess,logging  # nosec B404 - fixed argument lists only, never a shell
 from contextlib import contextmanager
 from concurrent.futures import ThreadPoolExecutor,wait,FIRST_COMPLETED
-from datetime import datetime,timezone,timedelta
+from datetime import datetime,timedelta
 from zoneinfo import ZoneInfo
 TIMEZONES={
     'Pacific/Auckland':'Auckland (New Zealand)',
@@ -43,7 +43,7 @@ from werkzeug.security import check_password_hash
 DATA=os.environ.get('DATA_DIR','/data')
 DB=DATA+'/monitor.sqlite3'
 logging.basicConfig(level=logging.INFO)
-APP_VERSION='0.14.1'
+APP_VERSION='0.14.2'
 def check_workers():
     try: value=int(os.environ.get('CHECK_WORKERS','4'))
     except ValueError: value=4
@@ -112,12 +112,85 @@ CREATE INDEX IF NOT EXISTS check_batch_items_status ON check_batch_items(batch_i
         item_columns={r[1] for r in c.execute('PRAGMA table_info(check_batch_items)')}
         if 'was_pending' not in item_columns:
             c.execute('ALTER TABLE check_batch_items ADD COLUMN was_pending INTEGER NOT NULL DEFAULT 0')
+        history_columns={r[1] for r in c.execute('PRAGMA table_info(history)')}
+        if 'first_checked' not in history_columns:
+            c.execute('ALTER TABLE history ADD COLUMN first_checked REAL')
+        if 'checks' not in history_columns:
+            c.execute('ALTER TABLE history ADD COLUMN checks INTEGER NOT NULL DEFAULT 1')
+        compacted=compact_history(c)
         c.execute("INSERT OR IGNORE INTO state VALUES('daily_time','03:00')")
         c.execute("INSERT OR IGNORE INTO state VALUES('timezone',?)",(DEFAULT_TIMEZONE,))
         if not c.execute("SELECT 1 FROM state WHERE key='fixed_schedule_v1'").fetchone():
             due=next_run(time.time(),get_clock(c),selected_zone(c))
             c.execute('UPDATE domains SET due=?,manual_pending=CASE WHEN checked IS NULL THEN 1 ELSE 0 END',(due,))
             c.execute("INSERT INTO state VALUES('fixed_schedule_v1','1')")
+    if compacted: vacuum_database()
+HISTORY_COMPACT_KEY='history_compact_v1'
+def slim_result(data):
+    """History copy without bulky diagnostics. Statuses, messages, warnings and records are kept."""
+    if not isinstance(data,dict): return data
+    out=dict(data)
+    for kind in ('spf','dmarc'):
+        item=out.get(kind)
+        if isinstance(item,dict) and isinstance(item.get('raw'),dict):
+            item=dict(item)
+            item['raw']={k:v for k,v in item['raw'].items() if k!='parsed'}
+            out[kind]=item
+    evidence=out.get('dns_evidence')
+    if isinstance(evidence,dict) and isinstance(evidence.get('queries'),dict):
+        queries={}
+        for kind,item in evidence['queries'].items():
+            if kind=='dkim' or not isinstance(item,dict): continue
+            queries[kind]={k:item[k] for k in ('consensus','recursive_matches_authoritative','authoritative_records') if k in item}
+        out['dns_evidence']={'status':evidence.get('status'),'warnings':evidence.get('warnings',[]),'queries':queries,'compact':True}
+    return out
+def history_fingerprint(data):
+    """Compare results while ignoring timing, trigger and cache metadata."""
+    if not isinstance(data,dict): return None
+    out=slim_result(data); out.pop('trigger',None)
+    expiry=out.get('domain_expiry')
+    if isinstance(expiry,dict):
+        out['domain_expiry']={k:expiry.get(k) for k in ('status','expires_at','source','manual')}
+    return json.dumps(out,sort_keys=True,separators=(',',':'),default=str)
+def record_history(c,domain_id,now,data,encoded):
+    """Save a check. An unchanged result extends the previous entry instead of adding a row."""
+    last=c.execute('SELECT id,result FROM history WHERE domain_id=? ORDER BY id DESC LIMIT 1',(domain_id,)).fetchone()
+    if last:
+        try: previous=json.loads(last['result'])
+        except (TypeError,ValueError): previous=None
+        if isinstance(previous,dict) and history_fingerprint(previous)==history_fingerprint(data):
+            c.execute('UPDATE history SET checked=?,result=?,checks=checks+1 WHERE id=?',(now,encoded,last['id']))
+            return False
+        if isinstance(previous,dict):
+            c.execute('UPDATE history SET result=? WHERE id=?',(json.dumps(slim_result(previous),separators=(',',':')),last['id']))
+    c.execute('INSERT INTO history(domain_id,checked,first_checked,result) VALUES(?,?,?,?)',(domain_id,now,now,encoded))
+    return True
+def compact_history(c):
+    """One-time upgrade: keep full diagnostics only on each domain's newest history entry."""
+    if c.execute('SELECT 1 FROM state WHERE key=?',(HISTORY_COMPACT_KEY,)).fetchone(): return 0
+    newest={r[0] for r in c.execute('SELECT MAX(id) FROM history GROUP BY domain_id')}
+    changed=0
+    for (ident,) in c.execute('SELECT id FROM history ORDER BY id').fetchall():
+        if ident in newest: continue
+        text=c.execute('SELECT result FROM history WHERE id=?',(ident,)).fetchone()[0]
+        try: compact=json.dumps(slim_result(json.loads(text)),separators=(',',':'))
+        except (TypeError,ValueError): continue
+        if len(compact)<len(text):
+            c.execute('UPDATE history SET result=? WHERE id=?',(compact,ident)); changed+=1
+    c.execute('UPDATE history SET first_checked=checked WHERE first_checked IS NULL')
+    c.execute('INSERT OR REPLACE INTO state VALUES(?,?)',(HISTORY_COMPACT_KEY,'1'))
+    if changed: logging.info('Compacted %s history entries.',changed)
+    return changed
+def vacuum_database():
+    """Reclaim space after compaction. Skipped safely if the database is busy."""
+    try:
+        c=sqlite3.connect(DB,timeout=30,isolation_level=None)
+        try:
+            c.execute('VACUUM'); c.execute('PRAGMA wal_checkpoint(TRUNCATE)')
+        finally: c.close()
+        logging.info('Database vacuumed after history compaction.')
+    except sqlite3.Error as e:
+        logging.warning('Database VACUUM skipped: %s',e)
 def domain_name(s):
     s=s.strip().rstrip('.').lower()
     try: s=s.encode('idna').decode('ascii')
@@ -222,7 +295,7 @@ import dns_evidence
 
 def isolated(kind,row):
     try:
-        p=subprocess.run([sys.executable,__file__,'check',kind,row['domain'],row['selectors'],row['policy']],capture_output=True,text=True,timeout=120)
+        p=subprocess.run([sys.executable,__file__,'check',kind,row['domain'],row['selectors'],row['policy']],capture_output=True,text=True,timeout=120)  # nosec B603 - fixed argument list, no shell
         if p.returncode:
             logging.error('Checker failed: %s',p.stderr[-2000:]); return res('unknown','Checker process failed; see worker logs.')
         return json.loads(p.stdout)
@@ -247,7 +320,7 @@ def isolated_domain(row,include_expiry=True):
     """Check one domain in one child process. Returns None on process failure."""
     args=[sys.executable,__file__,'check-domain',row['domain'],row['selectors'],row['policy'],'1' if include_expiry else '0']
     try:
-        p=subprocess.run(args,capture_output=True,text=True,timeout=DOMAIN_CHECK_TIMEOUT)
+        p=subprocess.run(args,capture_output=True,text=True,timeout=DOMAIN_CHECK_TIMEOUT)  # nosec B603 - fixed argument list, no shell
         if p.returncode:
             logging.error('Domain checker failed for %s: %s',row['domain'],p.stderr[-2000:]); return None
         data=json.loads(p.stdout)
@@ -317,7 +390,7 @@ def run_domain_check(row,batch_id,scheduled):
         due=next_run(now,get_clock(c),selected_zone(c)) if scheduled else row['due']
         updated=c.execute('UPDATE domains SET result=?,checked=?,due=?,manual_pending=0 WHERE id=? AND revision=?',(encoded,now,due,row['id'],row['revision'])).rowcount
         if updated:
-            c.execute('INSERT INTO history(domain_id,checked,result) VALUES(?,?,?)',(row['id'],now,encoded))
+            record_history(c,row['id'],now,data,encoded)
             c.execute('DELETE FROM history WHERE domain_id=? AND id NOT IN(SELECT id FROM history WHERE domain_id=? ORDER BY id DESC LIMIT 1000)',(row['id'],row['id']))
         if batch_id:
             state='complete' if updated else 'failed'; error='' if updated else 'Domain changed during check.'
@@ -385,6 +458,7 @@ app.jinja_env.globals['dns_host_label']=dns_host_label
 app.jinja_env.globals['expiry_label']=domain_expiry.label
 app.jinja_env.globals['expiry_class']=domain_expiry.css_class
 app.jinja_env.globals['expiry_source']=domain_expiry.source_label
+app.jinja_env.globals['app_version']=APP_VERSION
 app.secret_key=os.environ.get('SECRET_KEY','')
 app.config.update(MAX_CONTENT_LENGTH=16384,SESSION_COOKIE_HTTPONLY=True,SESSION_COOKIE_SAMESITE='Strict',PERMANENT_SESSION_LIFETIME=timedelta(hours=8))
 @app.template_filter('stamp')
@@ -469,7 +543,7 @@ def index():
         filtered_domains=[d for d in filtered_domains if any(needle in value.casefold() for value in (
             d['domain'], d['label'] or '', d['dns_host_search'] or '', d['dns_nameserver_search'] or ''
         ))]
-    severity={'fail':0,'unknown':1,'warn':2,'pass':3}
+    severity={'fail':0,'unknown':1,'warn':2,'pass':3}  # nosec B105 - sort order, not a password
     def severity_key(d):
         states=[displayed_status(d,k) for k in valid_kinds]
         return (min(severity[x] for x in states),d['domain'])
@@ -555,7 +629,7 @@ def detail(ident):
 
 @app.route('/bulk-add', methods=['GET', 'POST'])
 def bulk_add():
-    import csv, io
+    import csv
     text=request.form.get('domains','')
     selected=request.form.get('selectors','')
     policy=request.form.get('policy','quarantine')
@@ -635,7 +709,7 @@ def cancel_check_all():
         clear_ids=[r['domain_id'] for r in queued if not r['was_pending']]
         if clear_ids:
             marks=','.join('?' for _ in clear_ids)
-            c.execute(f'UPDATE domains SET manual_pending=0 WHERE id IN ({marks})',clear_ids)
+            c.execute(f'UPDATE domains SET manual_pending=0 WHERE id IN ({marks})',clear_ids)  # nosec B608 - placeholders only; values are bound
         c.execute("UPDATE check_batch_items SET status='failed',finished=?,error='Cancelled by administrator' WHERE batch_id=? AND status='queued'",(now,batch['id']))
         c.execute("UPDATE check_batches SET status='complete',cancelled=1,updated=?,finished=? WHERE id=?",(now,now,batch['id']))
     flash(f'Check-all cancelled: {len(queued)} queued checks removed; {running} already running will finish.')
@@ -661,7 +735,7 @@ def domains_status():
         if batch:
             running={r['domain_id'] for r in c.execute("SELECT domain_id FROM check_batch_items WHERE batch_id=? AND status='running'",(batch['id'],))}
         marks=','.join('?' for _ in ids)
-        rows=c.execute(f'SELECT id,manual_pending,checked FROM domains WHERE id IN ({marks})',ids).fetchall()
+        rows=c.execute(f'SELECT id,manual_pending,checked FROM domains WHERE id IN ({marks})',ids).fetchall()  # nosec B608 - placeholders only; values are bound
     return {'domains':{str(r['id']):{'pending':bool(r['manual_pending']),'checking':r['id'] in running,'checked':r['checked']} for r in rows}}
 @app.get('/changelog')
 def changelog():

@@ -1,6 +1,6 @@
 import unittest
 from pathlib import Path
-from test_app import Tests
+from test_app import Base as Tests
 import app as m
 class DashboardPositionTests(Tests):
  def test_assets_csp_and_sticky_header(self):

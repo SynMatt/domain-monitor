@@ -121,10 +121,8 @@ compose config --quiet
 FAILED_STEP='build target image'
 compose build --pull
 FAILED_STEP='run target regression tests'
-for test in tests/test_*.py; do
-  echo "Running $test"
-  compose run --rm --no-deps -e PYTHONPATH=/app web python "/app/$test"
-done
+echo "Running the full test suite in one container"
+compose run --rm --no-deps -e PYTHONPATH=/app:/app/tests web python -m unittest discover -s /app/tests -t /app/tests
 FAILED_STEP='start updated containers'
 compose up -d --force-recreate --wait --wait-timeout 180
 

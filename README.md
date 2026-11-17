@@ -283,6 +283,8 @@ Use a separate development checkout. Every application change must include:
 - Updated README commands when the release number changes
 - Candidate Docker build and complete test-suite pass before tagging
 
+Run the full suite from a development checkout with `./scripts/run-tests.sh`. Add a name to run only matching tests, for example `./scripts/run-tests.sh history`.
+
 Release tags use semantic versioning, for example `v0.14.0`.
 
 ## 📄 License
@@ -292,7 +294,7 @@ Licensed under the MIT License. See [LICENSE](LICENSE).
 <!-- BEGIN UPDATE COMMANDS -->
 ## Updating Domain Monitor
 
-Latest documented release: **v0.14.1**
+Latest documented release: **v0.14.2**
 
 Run these commands through SSH on the application host, not in a separate development checkout. Adjust the directory if your installation uses another path.
 
@@ -314,7 +316,7 @@ sudo ./scripts/update.sh
 
 ```bash
 cd /opt/domain-monitor
-sudo ./scripts/update.sh --version 0.14.1
+sudo ./scripts/update.sh --version 0.14.2
 ```
 
 ### Verify the deployment

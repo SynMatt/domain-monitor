@@ -1,6 +1,7 @@
 import os,stat,unittest
 from pathlib import Path
-from test_app import Tests
+from test_app import Base as Tests
+from app import APP_VERSION
 
 class Release0141Tests(Tests):
     def test_maintenance_scripts_present_and_executable(self):
@@ -28,6 +29,6 @@ class Release0141Tests(Tests):
 
     def test_docs_and_version(self):
         self.assertIn('cleanup-images.sh',Path('/app/docs/maintenance.md').read_text())
-        self.assertEqual(self.client.get('/health').json['version'],'0.14.1')
+        self.assertEqual(self.client.get('/health').json['version'],APP_VERSION)
 
 if __name__=='__main__': unittest.main(verbosity=2)

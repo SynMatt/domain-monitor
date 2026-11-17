@@ -1,6 +1,6 @@
 import json,time,unittest
 from unittest.mock import patch
-from test_app import Tests
+from test_app import Base as Tests
 import app as m
 from dns_providers import KEY,provider,display,BUILTINS
 class ProviderSettingsTests(Tests):

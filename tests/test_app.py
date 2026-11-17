@@ -2,18 +2,21 @@ import os,tempfile,unittest,json,time,base64
 from unittest.mock import patch
 from werkzeug.security import generate_password_hash
 TEMP=tempfile.TemporaryDirectory()
-os.environ.update(DATA_DIR=TEMP.name,SECRET_KEY='test-only',ADMIN_PASSWORD_HASH=generate_password_hash('test-password'))
+os.environ.update(DATA_DIR=TEMP.name,SECRET_KEY='test-only',ADMIN_PASSWORD_HASH=generate_password_hash('test-password',method='pbkdf2:sha256:1000'))
 import app as m
-class Tests(unittest.TestCase):
+class Base(unittest.TestCase):
+    """Shared fixtures only. Other files reuse this without re-running the core tests."""
     def setUp(self):
         m.init()
         with m.db() as c:
-            c.execute('DELETE FROM domains'); c.execute('DELETE FROM attempts')
+            for table in ('check_batches','history','domains','attempts','state'): c.execute(f'DELETE FROM {table}')
+        m.init()
         self.client=m.app.test_client(); m.app.config['TESTING']=True
     def auth(self):
         with self.client.session_transaction() as s: s.update(authenticated=True,csrf='token')
     def post(self,path,**kw): return self.client.post(path,data=dict(csrf='token',**kw))
     def add(self): return self.post('/new',domain='example.com',label='<script>alert(1)</script>',selectors='selector1',policy='quarantine')
+class Tests(Base):
     def test_auth(self):
         self.assertEqual(self.client.get('/').status_code,302)
         self.assertEqual(self.client.get('/health').status_code,200)

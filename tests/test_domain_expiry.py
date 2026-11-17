@@ -1,7 +1,7 @@
 import unittest
 from datetime import datetime,timezone
 from unittest.mock import patch
-from test_app import Tests
+from test_app import Base as Tests
 import domain_expiry as expiry
 
 class DomainExpiryTests(Tests):

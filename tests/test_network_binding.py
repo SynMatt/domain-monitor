@@ -1,6 +1,6 @@
 import unittest
 from pathlib import Path
-from test_app import Tests
+from test_app import Base as Tests
 
 class NetworkBindingTests(Tests):
     def test_compose_uses_safe_environment_defaults(self):

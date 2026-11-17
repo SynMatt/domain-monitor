@@ -1,7 +1,7 @@
 import unittest,json,time
 from unittest.mock import patch
 from types import SimpleNamespace
-from test_app import Tests
+from test_app import Base as Tests
 import app as m
 import dns_host as h
 class DnsHostTests(Tests):

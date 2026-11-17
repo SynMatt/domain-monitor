@@ -1,5 +1,5 @@
 import json, time, unittest
-from test_app import Tests
+from test_app import Base as Tests
 import app as m
 
 class ClickableFilterTests(Tests):

@@ -5,7 +5,7 @@ from pathlib import Path
 from werkzeug.security import generate_password_hash
 
 TEMP=tempfile.TemporaryDirectory()
-os.environ.update(DATA_DIR=TEMP.name,SECRET_KEY='test-only',ADMIN_PASSWORD_HASH=generate_password_hash('test-password'))
+os.environ.update(DATA_DIR=TEMP.name,SECRET_KEY='test-only',ADMIN_PASSWORD_HASH=generate_password_hash('test-password',method='pbkdf2:sha256:1000'))
 import app as m
 import domain_expiry as de
 

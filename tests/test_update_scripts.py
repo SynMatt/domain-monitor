@@ -1,8 +1,9 @@
 import unittest
 from pathlib import Path
-from test_app import Tests
+from test_app import Base as Tests
+from app import APP_VERSION
 class UpdateScriptTests(Tests):
-    def test_version(self): self.assertEqual(self.client.get('/health').json['version'],'0.14.1')
+    def test_version(self): self.assertEqual(self.client.get('/health').json['version'],APP_VERSION)
     def test_backup_uses_host_database(self):
         s=Path('/app/scripts/backup.sh').read_text(); self.assertIn('source.backup(target)',s); self.assertIn('mode=ro',s)
     def test_restore_numeric_ownership(self):

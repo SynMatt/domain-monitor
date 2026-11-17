@@ -68,7 +68,7 @@ def _addresses(host):
         try:
             answer = current.resolve(host.rstrip('.') + '.', record_type, search=False)
             values.extend(str(item) for item in answer)
-        except Exception:
+        except Exception:  # nosec B110 - a nameserver with no address is reported by query_evidence
             pass
     return values
 
@@ -138,6 +138,8 @@ def query_evidence(domain, name, record_type):
                 last_error = error
         if item['status'] != 'ok' and last_error:
             item['error'] = f'{type(last_error).__name__}: {last_error}'[:300]
+        elif item['status'] != 'ok':
+            item['error'] = 'No IPv4 or IPv6 address could be resolved for this nameserver.'
         evidence['authoritative'].append(item)
         if item['status'] == 'ok':
             groups.append(tuple(item.get('records', [])))

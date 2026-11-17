@@ -1,7 +1,8 @@
 import json,time,unittest
 from pathlib import Path
 from zoneinfo import ZoneInfo
-from test_app import Tests
+from test_app import Base as Tests
+from app import APP_VERSION
 import app as m
 
 class TimezoneSettingsTests(Tests):
@@ -28,6 +29,6 @@ class TimezoneSettingsTests(Tests):
         local=m.datetime.fromtimestamp(due,ZoneInfo('Australia/Sydney'))
         self.assertEqual((local.hour,local.minute),(7,15))
     def test_version_and_changelog(self):
-        self.assertEqual(self.client.get('/health').json['version'],'0.14.1')
-        self.assertIn('## 0.14.1 - 2026-11-17',Path('/app/CHANGELOG.md').read_text())
+        self.assertEqual(self.client.get('/health').json['version'],APP_VERSION)
+        self.assertIn(f'## {APP_VERSION} - ',Path('/app/CHANGELOG.md').read_text())
 if __name__=='__main__': unittest.main(verbosity=2)

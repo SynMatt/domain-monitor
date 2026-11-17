@@ -1,5 +1,5 @@
 import unittest
-from test_app import Tests
+from test_app import Base as Tests
 import app as m
 class BulkTests(Tests):
     def test_bulk_add_and_skip(self):

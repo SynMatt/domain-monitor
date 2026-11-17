@@ -1,5 +1,5 @@
 import unittest
-from test_app import Tests
+from test_app import Base as Tests
 
 class RefreshViewTests(Tests):
     def test_refresh_uses_current_path_and_query(self):

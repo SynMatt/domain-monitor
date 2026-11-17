@@ -1,7 +1,7 @@
 import os,time,unittest
 from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
-from test_app import Tests
+from test_app import Base as Tests
 import app as m
 
 class ParallelWorkerTests(Tests):

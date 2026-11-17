@@ -20,6 +20,8 @@ The tests use isolated temporary SQLite databases and synthetic example domains.
 
 | `test_ai_disclaimer.py` | Visible AI-assisted project disclaimer, maintenance warning, independent-validation guidance, version metadata, and changelog entry. |
 
-Run the complete suite in the built container so the tests use the same pinned dependencies as production.
+Run the complete suite in the built container so the tests use the same pinned dependencies as production. From a development checkout, `./scripts/run-tests.sh` builds the image and runs every test once in a single container.
 
 | `test_dns_provider_settings.py` | Mapping CRUD, authentication, CSRF, suffix boundaries, cached labels, fallback and schedule preservation. |
+| `test_release_0142.py` | Compact history, grouping of unchanged results, one-time upgrade compaction, Flask pin, HTTPS-only RDAP and single-run test tooling. |
+| `test_release_metadata.py` | Displayed and reported versions come from APP_VERSION, and the changelog starts with the current release. |

@@ -1,6 +1,7 @@
 import unittest
 from pathlib import Path
-from test_app import Tests
+from test_app import Base as Tests
+from app import APP_VERSION
 import app as m
 
 class AiDisclaimerTests(Tests):
@@ -12,6 +13,6 @@ class AiDisclaimerTests(Tests):
         self.assertIn(b'may not be actively maintained',page.data)
         self.assertIn(b'independently validate results',page.data)
     def test_version_and_changelog(self):
-        self.assertEqual(self.client.get('/health').json['version'],'0.14.1')
-        self.assertIn('## 0.14.1 - 2026-11-17',Path('/app/CHANGELOG.md').read_text())
+        self.assertEqual(self.client.get('/health').json['version'],APP_VERSION)
+        self.assertIn(f'## {APP_VERSION} - ',Path('/app/CHANGELOG.md').read_text())
 if __name__=='__main__': unittest.main(verbosity=2)
