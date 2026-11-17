@@ -1,4 +1,12 @@
 # Domain Monitor changelog
+## 0.14.4 - 2026-11-17
+### Changed
+- On Hyper-V virtual machines the resource tuner decides from CPU cores only. Dynamic Memory made the memory reading change between runs, which could switch `CHECK_WORKERS` between 2 and 4.
+- Expected log lines from tests that deliberately make checks time out or crash are hidden, so a passing build or update shows only dots and OK. `DM_TEST_LOGS=1` shows them.
+- Updated the README for 0.14.2 to 0.14.4: new History and database size section, automatic CPU and worker tuning in Features, and troubleshooting for the CPU-range update error, Hyper-V memory readings and test output.
+### Added
+- Added a README review marker and a test that fails the build unless each release updates it and includes a changelog README line, so the README cannot fall behind again.
+- Added a test that every user-facing script is documented in the README or the docs folder.
 ## 0.14.3 - 2026-11-17
 ### Added
 - Added `scripts/tune-resources.sh`, which sets `CONTAINER_CPUS` and `CHECK_WORKERS` in `.env` to suit the host's CPU cores and memory. It shows old and new values, keeps a `.env.backup-tune-*` copy, and supports `--dry-run`.

@@ -17,8 +17,9 @@ Domain Monitor checks **SPF**, **DKIM**, **DMARC**, DNS hosting, and domain-expi
 - Domain-expiry checks using RDAP, `.nz` WHOIS fallback, and manual dates
 - Scheduled daily checks and per-domain **Check now**
 - Protected **Check all domains** batches with progress and cancellation
-- Parallel checks with configurable workers and CPU limits
+- Parallel checks, with CPU and worker limits set automatically to suit the host
 - Search, filters, sorting, history, backups, and safe update scripts
+- Compact history: identical results are grouped, and full DNS detail is kept for the newest check
 - Non-root containers, CSRF protection, security headers, and rate-limited login
 
 ## 🖥️ What the dashboard shows
@@ -119,7 +120,7 @@ Keep secrets such as `SECRET_KEY` and `ADMIN_PASSWORD_HASH` only in `.env` or an
 
 Since version `0.14.0`, all checks for one domain run in a single child process. This significantly reduces application startup overhead.
 
-`scripts/tune-resources.sh` picks these values from the CPU cores and memory Docker can see:
+`scripts/tune-resources.sh` picks these values from the CPU cores and memory Docker can see. On Hyper-V virtual machines it uses CPU cores only, because Dynamic Memory makes the memory reading change from minute to minute:
 
 | Host resources | `CHECK_WORKERS` | `CONTAINER_CPUS` |
 |---|---:|---:|
@@ -216,6 +217,21 @@ sudo ./scripts/restore.sh \
 
 Keep a separate off-host copy of important backups. A local backup does not protect against VM, disk, or host failure.
 
+## 🗂️ History and database size
+
+Every check is saved to the domain's history, which is shown under **Details & history**.
+
+- **Identical results are grouped.** When a check gives the same result as the one before, the existing entry is extended instead of adding a new one. It shows as *Same result for N checks since …*. Timing, trigger and cache details are ignored when comparing.
+- **Full DNS detail is kept for the newest entry only.** Older entries keep statuses, messages, warnings and records, and show *Summary only* under DNS evidence.
+- **Limits:** up to 90 days and 1,000 entries per domain.
+
+Version 0.14.2 slimmed existing history once and reclaimed the space, so the database is much smaller after upgrading from an earlier release. No entries are deleted. To check the size:
+
+```bash
+cd /opt/domain-monitor
+sudo docker compose exec -T web ls -lh /data/monitor.sqlite3
+```
+
 ## 🌐 DNS provider directory
 
 Open **Settings → Manage DNS providers** to add, edit, or delete friendly provider mappings.
@@ -258,6 +274,30 @@ sudo docker compose logs --tail=100 web worker
 
 Domain Monitor records the recursive answer and authoritative DNS evidence. Compare the returned records, TTLs, response codes, and nameservers. Different public resolvers may temporarily show different cached views.
 
+### Update fails with "range of CPUs is from 0.01 to N"
+
+`CONTAINER_CPUS` in `.env` is higher than the number of CPU cores the host has, so Docker refuses to start the containers. Let the tuner fix it, then run the update again:
+
+```bash
+cd /opt/domain-monitor
+sudo ./scripts/tune-resources.sh
+```
+
+From 0.14.3 the updater does this automatically before building.
+
+### The tuner shows much less memory than the VM has
+
+On Hyper-V with **Dynamic Memory**, Linux only sees the memory currently assigned, which goes up and down. Since 0.14.4 the tuner detects Hyper-V and decides from CPU cores only. If you want the reading to be stable as well, turn off Dynamic Memory in the VM's settings and give it a fixed amount.
+
+### Test output during updates
+
+Some tests deliberately make checks time out or crash to prove they are handled. Their log lines are hidden, so a passing update shows only dots and `OK`. To see them when investigating a failure:
+
+```bash
+cd /opt/domain-monitor-github
+DM_TEST_LOGS=1 ./scripts/run-tests.sh
+```
+
 ### Worker health
 
 ```bash
@@ -289,7 +329,7 @@ Use a separate development checkout. Every application change must include:
 - Version update
 - Changelog entry using **Added**, **Changed**, **Fixed**, **Removed**, or **Security** as appropriate
 - Regression tests
-- Updated README commands when the release number changes
+- README updated for every user-visible change: features, settings, scripts and troubleshooting. Then set the review marker at the end of this file to the new version. A test fails the build if the marker or a changelog README line is missing.
 - Candidate Docker build and complete test-suite pass before tagging
 
 Run the full suite from a development checkout with `./scripts/run-tests.sh`. Add a name to run only matching tests, for example `./scripts/run-tests.sh history`.
@@ -300,10 +340,12 @@ Release tags use semantic versioning, for example `v0.14.0`.
 
 Licensed under the MIT License. See [LICENSE](LICENSE).
 
+<!-- README reviewed for release: 0.14.4 -->
+
 <!-- BEGIN UPDATE COMMANDS -->
 ## Updating Domain Monitor
 
-Latest documented release: **v0.14.3**
+Latest documented release: **v0.14.4**
 
 Run these commands through SSH on the application host, not in a separate development checkout. Adjust the directory if your installation uses another path.
 
@@ -325,7 +367,7 @@ sudo ./scripts/update.sh
 
 ```bash
 cd /opt/domain-monitor
-sudo ./scripts/update.sh --version 0.14.3
+sudo ./scripts/update.sh --version 0.14.4
 ```
 
 ### Verify the deployment

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Build a candidate image from this checkout and run the whole test suite once.
 # Usage: ./scripts/run-tests.sh [name-filter]   e.g. ./scripts/run-tests.sh history
+# Expected test log lines are hidden. Show them with: DM_TEST_LOGS=1 ./scripts/run-tests.sh
 # Uses Docker's build cache, a read-only container and a temporary /tmp, like production.
 set -Eeuo pipefail
 cd "$(dirname "$0")/.."
@@ -15,6 +16,6 @@ $SUDO docker build -q -t "$TAG" . >/dev/null
 BUILT=$(date +%s)
 echo "Running tests ..."
 $SUDO docker run --rm --read-only --tmpfs /tmp:rw,noexec,nosuid,size=128m \
-  -e PYTHONPATH=/app:/app/tests "$TAG" python "${ARGS[@]}"
+  -e PYTHONPATH=/app:/app/tests -e "DM_TEST_LOGS=${DM_TEST_LOGS:-}" "$TAG" python "${ARGS[@]}"
 END=$(date +%s)
 echo "Build: $((BUILT-START))s | Tests: $((END-BUILT))s | Image: $TAG"

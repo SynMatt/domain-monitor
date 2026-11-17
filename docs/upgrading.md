@@ -62,3 +62,12 @@ Commit the generated README with the version update and changelog after the full
 
 ## CPU and worker settings
 From 0.14.3 the updater runs `scripts/tune-resources.sh` after checking out the release. It sets `CONTAINER_CPUS` and `CHECK_WORKERS` in `.env` to suit the host and saves the previous file as `.env.backup-tune-*`. Set `RESOURCE_TUNING='manual'` to keep your own values; `CONTAINER_CPUS` is still lowered if it is higher than the host's cores.
+
+## README review for each release
+The update-commands block at the end of the README is generated. Everything else is written by hand, so each release must also:
+
+1. Update the README sections affected by the change (features, settings, scripts, troubleshooting).
+2. Set `<!-- README reviewed for release: X.Y.Z -->` in the README to the new version.
+3. Add a changelog line saying what changed in the README.
+
+`tests/test_release_0144.py` fails the build if steps 2 or 3 are missed.

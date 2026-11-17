@@ -4,6 +4,8 @@
 RESOURCE_TUNING='auto' (default): both values follow the host.
 RESOURCE_TUNING='manual': your values are kept, except CONTAINER_CPUS is lowered
 if it is higher than the host's cores, because Docker refuses to start otherwise.
+On Hyper-V (--ignore-memory) memory is not used: Dynamic Memory makes the
+guest reading change from minute to minute, so only CPU cores decide.
 Exit codes: 0 = no change, 3 = .env changed, 1 = error.
 """
 import argparse,os,re,sys,time
@@ -11,10 +13,11 @@ from pathlib import Path
 GIB=1024**3
 MAX_CPUS=4            # measured: 4 cores already checks 164 domains in about 1.2 minutes
 SMALL_HOST_MEMORY=3*GIB
-def recommend(host_cpus,host_memory):
+def recommend(host_cpus,host_memory,ignore_memory=False):
     host_cpus=max(1,int(host_cpus))
     cpus=min(host_cpus,MAX_CPUS)
-    workers=2 if host_cpus<2 or host_memory<SMALL_HOST_MEMORY else 4
+    small_memory=not ignore_memory and host_memory<SMALL_HOST_MEMORY
+    workers=2 if host_cpus<2 or small_memory else 4
     return {'CONTAINER_CPUS':str(cpus),'CHECK_WORKERS':str(workers)}
 def parse(lines):
     values={}
@@ -22,13 +25,13 @@ def parse(lines):
         match=re.match(r'^([A-Za-z_][A-Za-z0-9_]*)=(.*)$',line.strip())
         if match: values[match.group(1)]=match.group(2).strip().strip('\'"')
     return values
-def plan(values,host_cpus,host_memory):
+def plan(values,host_cpus,host_memory,ignore_memory=False):
     """Return (mode, updates). Updates hold only keys whose value should change."""
     host_cpus=max(1,int(host_cpus))
     mode=values.get('RESOURCE_TUNING','auto').strip().lower()
     if mode not in ('auto','manual'): mode='auto'
     if mode=='auto':
-        target=recommend(host_cpus,host_memory)
+        target=recommend(host_cpus,host_memory,ignore_memory)
     else:
         target={}
         try: current=float(values.get('CONTAINER_CPUS',''))
@@ -54,13 +57,16 @@ def main(argv=None):
     parser.add_argument('--cpus',type=int,required=True)
     parser.add_argument('--mem',type=int,required=True,help='host memory in bytes')
     parser.add_argument('--dry-run',action='store_true')
+    parser.add_argument('--ignore-memory',action='store_true',help='Hyper-V: decide from CPU cores only')
     args=parser.parse_args(argv)
     path=Path(args.env)
     if not path.is_file(): print(f'No {path} found.',file=sys.stderr); return 1
     lines=path.read_text().splitlines()
     values=parse(lines)
-    mode,updates=plan(values,args.cpus,args.mem)
+    mode,updates=plan(values,args.cpus,args.mem,args.ignore_memory)
     print(f'Host: {max(1,args.cpus)} CPU core(s), {args.mem/GIB:.1f} GiB memory · tuning mode: {mode}')
+    if args.ignore_memory:
+        print('  Hyper-V detected: memory reading ignored (Dynamic Memory changes it); using CPU cores only.')
     for key in ('CONTAINER_CPUS','CHECK_WORKERS'):
         old=values.get(key,'(not set)'); new=updates.get(key,old)
         print(f'  {key:<15} {old} -> {new}' if new!=old else f'  {key:<15} {old} (unchanged)')

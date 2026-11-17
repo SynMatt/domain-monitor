@@ -26,3 +26,4 @@ Run the complete suite in the built container so the tests use the same pinned d
 | `test_release_0142.py` | Compact history, grouping of unchanged results, one-time upgrade compaction, Flask pin, HTTPS-only RDAP and single-run test tooling. |
 | `test_release_metadata.py` | Displayed and reported versions come from APP_VERSION, and the changelog starts with the current release. |
 | `test_release_0143.py` | Host-fitted CPU and worker settings, manual override, dry run, settings preserved, and setup/update wiring. |
+| `test_release_0144.py` | README review marker and changelog README line for every release, documented scripts, Hyper-V tuning, and hidden expected test logs. |

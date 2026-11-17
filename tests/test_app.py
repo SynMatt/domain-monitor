@@ -4,6 +4,11 @@ from werkzeug.security import generate_password_hash
 TEMP=tempfile.TemporaryDirectory()
 os.environ.update(DATA_DIR=TEMP.name,SECRET_KEY='test-only',ADMIN_PASSWORD_HASH=generate_password_hash('test-password',method='pbkdf2:sha256:1000'))
 import app as m
+import logging
+# Some tests deliberately make checks time out or crash. Hide the resulting log lines
+# so a passing run shows only dots and OK. Set DM_TEST_LOGS=1 to see them.
+if not os.environ.get('DM_TEST_LOGS'):
+    for _handler in logging.getLogger().handlers: _handler.setLevel(logging.CRITICAL+1)
 class Base(unittest.TestCase):
     """Shared fixtures only. Other files reuse this without re-running the core tests."""
     def setUp(self):
