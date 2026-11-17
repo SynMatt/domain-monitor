@@ -116,6 +116,10 @@ path.write_text('\n'.join(lines) + '\n')
 path.chmod(0o600)
 PY
 
+FAILED_STEP='fit CPU and worker settings to this host'
+if [ -x "$DM_ROOT/scripts/tune-resources.sh" ]; then
+  DOMAIN_MONITOR_ROOT="$DM_ROOT" "$DM_ROOT/scripts/tune-resources.sh" --no-restart
+fi
 FAILED_STEP='validate target Compose configuration'
 compose config --quiet
 FAILED_STEP='build target image'

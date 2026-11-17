@@ -37,6 +37,10 @@ printf '\n'
 
 cp -a .env "$BACKUP"
 chmod 0600 "$BACKUP"
+# Fit CPU and worker limits to this host before any container starts.
+if [ -x "$ROOT/scripts/tune-resources.sh" ]; then
+    DOMAIN_MONITOR_ROOT="$ROOT" "$ROOT/scripts/tune-resources.sh" --no-restart
+fi
 
 printf '%s\n' "$NEW_PASSWORD" |
 docker compose run --rm --no-deps -T --entrypoint python web -c '
@@ -58,12 +62,18 @@ if [ -z "$SECRET_KEY" ]; then
 fi
 PASSWORD_HASH=$(cat "$TMP_HASH")
 
-cat > .env.new <<EOF
-SECRET_KEY='$SECRET_KEY'
-ADMIN_PASSWORD_HASH='$PASSWORD_HASH'
-EOF
-chmod 0600 .env.new
-mv -f .env.new .env
+# Replace only the two secrets. Binding, version, CPU and worker settings are kept.
+SECRET_KEY="$SECRET_KEY" PASSWORD_HASH="$PASSWORD_HASH" python3 - <<'PY'
+import os
+from pathlib import Path
+path = Path('.env')
+updates = {'SECRET_KEY': os.environ['SECRET_KEY'], 'ADMIN_PASSWORD_HASH': os.environ['PASSWORD_HASH']}
+kept = [line for line in path.read_text().splitlines() if line.split('=', 1)[0] not in updates]
+temp = Path('.env.new')
+temp.write_text('\n'.join([f"{key}='{value}'" for key, value in updates.items()] + kept) + '\n')
+temp.chmod(0o600)
+os.replace(temp, path)
+PY
 
 if ! docker compose config --quiet; then
     echo 'Compose validation failed. Restoring the previous environment file.'

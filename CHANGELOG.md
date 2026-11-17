@@ -1,4 +1,14 @@
 # Domain Monitor changelog
+## 0.14.3 - 2026-11-17
+### Added
+- Added `scripts/tune-resources.sh`, which sets `CONTAINER_CPUS` and `CHECK_WORKERS` in `.env` to suit the host's CPU cores and memory. It shows old and new values, keeps a `.env.backup-tune-*` copy, and supports `--dry-run`.
+- Added `RESOURCE_TUNING` to `.env`: `auto` (default) follows the host; `manual` keeps your own values.
+### Changed
+- New setups are tuned automatically: `set-admin-password.sh` runs the tuner before any container starts.
+- Every update runs the tuner after checking out the release, so moving a VM to different hardware is picked up on the next update.
+### Fixed
+- Updates no longer fail with "range of CPUs is from 0.01 to N" when `CONTAINER_CPUS` is higher than the host's cores; it is lowered to fit, even in manual mode.
+- `set-admin-password.sh` no longer removes every other `.env` setting (network binding, image version, CPU and worker limits) when it saves the new password.
 ## 0.14.2 - 2026-11-17
 ### Changed
 - History keeps full DNS diagnostics only on each domain's newest entry. Older entries keep statuses, messages, warnings and records, without the expanded SPF include tree or raw resolver timings.

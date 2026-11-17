@@ -59,3 +59,6 @@ python3 tests/test_readme_release_commands.py
 ```
 
 Commit the generated README with the version update and changelog after the full candidate suite passes. The README test rejects a stale explicit-version command. This is a release-time safeguard, not a background process that edits GitHub automatically.
+
+## CPU and worker settings
+From 0.14.3 the updater runs `scripts/tune-resources.sh` after checking out the release. It sets `CONTAINER_CPUS` and `CHECK_WORKERS` in `.env` to suit the host and saves the previous file as `.env.backup-tune-*`. Set `RESOURCE_TUNING='manual'` to keep your own values; `CONTAINER_CPUS` is still lowered if it is higher than the host's cores.

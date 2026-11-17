@@ -73,10 +73,10 @@ cp .env.example .env
 chmod 600 .env
 ```
 
-Set a secure administrator password using the included helper:
+Set a secure administrator password. The helper also sets CPU and worker limits to suit this host:
 
 ```bash
-./scripts/set-admin-password.sh
+sudo ./scripts/set-admin-password.sh
 ```
 
 Start Domain Monitor:
@@ -109,8 +109,9 @@ CONTAINER_CPUS='2'
 |---|---|---:|
 | `HOST_BIND_IP` | Address exposed by Docker | `127.0.0.1` |
 | `HOST_PORT` | Host-side web port | `8282` |
-| `CHECK_WORKERS` | Domains checked concurrently | `4` |
-| `CONTAINER_CPUS` | Maximum CPU cores available to each container | `2` |
+| `CHECK_WORKERS` | Domains checked concurrently | Auto |
+| `CONTAINER_CPUS` | Maximum CPU cores available to each container | Auto |
+| `RESOURCE_TUNING` | `auto` sets the two values above to suit the host; `manual` keeps your own values | `auto` |
 
 Keep secrets such as `SECRET_KEY` and `ADMIN_PASSWORD_HASH` only in `.env` or an approved secret-management system.
 
@@ -118,17 +119,25 @@ Keep secrets such as `SECRET_KEY` and `ADMIN_PASSWORD_HASH` only in `.env` or an
 
 Since version `0.14.0`, all checks for one domain run in a single child process. This significantly reduces application startup overhead.
 
-Suggested starting values:
+`scripts/tune-resources.sh` picks these values from the CPU cores and memory Docker can see:
 
 | Host resources | `CHECK_WORKERS` | `CONTAINER_CPUS` |
 |---|---:|---:|
-| 1–2 CPU cores, 2 GB RAM | 2 | 1 |
-| 2–4 CPU cores, 4 GB RAM | 4 | 2 |
-| 4+ CPU cores, 8 GB RAM | 4 | 4 |
+| 1 CPU core, or under 3 GB RAM | 2 | Same as cores |
+| 2–3 CPU cores, 3 GB+ RAM | 4 | Same as cores |
+| 4+ CPU cores, 3 GB+ RAM | 4 | 4 |
 
-Do not set `CONTAINER_CPUS` higher than the CPU cores available to Docker. Increase settings only after measuring a complete **Check all domains** run.
+The tuner runs during setup (`set-admin-password.sh`) and on every update. To check or re-apply it at any time:
 
-Example for a larger host:
+```bash
+cd /opt/domain-monitor
+sudo ./scripts/tune-resources.sh --dry-run   # show what would change
+sudo ./scripts/tune-resources.sh             # apply and recreate containers
+```
+
+`CONTAINER_CPUS` is never left higher than the host's cores, because Docker refuses to start containers when it is.
+
+To use your own values, also set `RESOURCE_TUNING='manual'` so the tuner keeps them. Example for a larger host:
 
 ```bash
 cd /opt/domain-monitor
@@ -294,7 +303,7 @@ Licensed under the MIT License. See [LICENSE](LICENSE).
 <!-- BEGIN UPDATE COMMANDS -->
 ## Updating Domain Monitor
 
-Latest documented release: **v0.14.2**
+Latest documented release: **v0.14.3**
 
 Run these commands through SSH on the application host, not in a separate development checkout. Adjust the directory if your installation uses another path.
 
@@ -316,7 +325,7 @@ sudo ./scripts/update.sh
 
 ```bash
 cd /opt/domain-monitor
-sudo ./scripts/update.sh --version 0.14.2
+sudo ./scripts/update.sh --version 0.14.3
 ```
 
 ### Verify the deployment
