@@ -317,6 +317,18 @@ PY
 - Treat DNS health as configuration evidence, not proof that every message is signed or aligned.
 - Review third-party dependencies and release changes before production deployment.
 
+## 🔢 Versioning
+
+Domain Monitor uses semantic versioning: MAJOR.MINOR.PATCH.
+
+| Number | Increase it when | Examples |
+|---|---|---|
+| **Major** | A change can break an existing installation or needs action from the administrator | Incompatible database migration, removed or renamed `.env` setting, changed update procedure, removed feature |
+| **Minor** | A new capability or visible change that keeps data and settings compatible | New page, setting, script, check or warning type |
+| **Patch** | Fixes and behind-the-scenes changes | Bug fix, security update, documentation, internal clean-up |
+
+A large or redesigned release is still a minor release when data and settings stay compatible. When one number increases, every number to its right returns to zero. The build fails when the newest changelog entry has an **Added** section but only the patch number increased.
+
 ## 🧪 Development and releases
 
 Use a separate development checkout. Every application change must include:
@@ -356,17 +368,17 @@ External SPF warning: _spf.provider.example.net uses an a mechanism but has no A
 ```
 
 The result remains a warning because the monitored domain's SPF record can still be valid and other mechanisms in the included record can continue to authorize senders.
-<!-- README reviewed for release: 0.15.2 -->
+<!-- README reviewed for release: 1.0.0 -->
 
 <!-- BEGIN UPDATE COMMANDS -->
 ### Current release commands
 
-Latest documented release: **v0.15.2**
+Latest documented release: **v1.0.0**
 
 ```bash
 cd /opt/domain-monitor
 sudo ./scripts/update.sh --check
-sudo ./scripts/update.sh --version 0.15.2
+sudo ./scripts/update.sh --version 1.0.0
 sudo docker compose ps
 sudo docker compose exec -T web python -c 'import app; print(app.APP_VERSION)'
 sudo docker compose config --images

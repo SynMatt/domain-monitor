@@ -1,5 +1,19 @@
 # Domain Monitor changelog
 
+## 1.0.0 - 2026-11-18
+
+### Added
+- Added a Versioning section to the README that defines when the major, minor and patch numbers change.
+- Added a test that fails the build when the newest changelog entry breaks those rules, for example an entry with an Added section that only raises the patch number.
+
+### Changed
+- First stable release. From this version, a change that can break existing data, settings or the update procedure is made only in a major release.
+- Reworded two old changelog lines and a test so the previous GitHub account name no longer appears in the repository.
+- Reviewed the README for this release and added the Versioning section.
+
+### Security
+- Widened the no-real-data test to also reject the previous GitHub account name.
+
 ## 0.15.2 - 2026-11-18
 
 ### Security
@@ -412,7 +426,7 @@
 ## 0.9.3 - 2026-11-10
 
 ### Added
-- Added the MIT License with copyright attributed to `mx5matt`.
+- Added the MIT License.
 - Added a direct license link and reuse summary to the project README.
 
 ### Changed

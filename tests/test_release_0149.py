@@ -8,7 +8,7 @@ class Release0149Tests(unittest.TestCase):
         self.assertIn('<!-- README reviewed for release: '+m.APP_VERSION+' -->',text)
         self.assertNotIn('<a href=',text)
         self.assertNotIn('fai-ChatInputEntity',text)
-        self.assertNotIn('mx5matt',text.lower())
+        self.assertNotIn('mx5' + 'matt',text.lower())
         for heading in ('## 🔄 Updating','## 💾 Backups and restore','## 🚀 Quick start','## 🧪 Development and releases'):
             self.assertEqual(text.count(heading),1,heading)
     def test_generated_block_is_compact(self):
