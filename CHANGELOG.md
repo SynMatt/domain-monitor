@@ -1,5 +1,14 @@
 # Domain Monitor changelog
 
+## 0.15.2 - 2026-11-18
+
+### Security
+- Removed the last real DNS provider name from a test fixture. Tests now use reserved example names only.
+
+### Changed
+- Widened the no-real-data test to also reject that provider name.
+- Reviewed the README for this release; no wording changes were needed.
+
 ## 0.15.1 - 2026-11-18
 
 ### Security

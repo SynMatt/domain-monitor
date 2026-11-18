@@ -5,7 +5,14 @@ ROOT = Path('/app')
 SUFFIXES = {'.md', '.py', '.html', '.js', '.sh', '.yml', '.yaml', '.txt', '.example', '.cfg', '.toml', '.json'}
 SKIP_PARTS = {'data', 'backups', '.git', '__pycache__'}
 # Built from fragments so this file does not contain the names it forbids.
-FORBIDDEN = ('gol' + 'f.co.nz', 'remuera' + 'golfclub', 'aswe' + 'fa', 'syn' + 'axis')
+FORBIDDEN = (
+    'gol' + 'f.co.nz',
+    'remuera' + 'golfclub',
+    'aswe' + 'fa',
+    'syn' + 'axis',
+    'impact' + 'websites',
+    'impact ' + 'websites',
+)
 
 
 class NoRealDataTests(unittest.TestCase):
