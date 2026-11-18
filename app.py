@@ -43,7 +43,7 @@ from werkzeug.security import check_password_hash
 DATA=os.environ.get('DATA_DIR','/data')
 DB=DATA+'/monitor.sqlite3'
 logging.basicConfig(level=logging.INFO)
-APP_VERSION='0.14.9'
+APP_VERSION='0.15.0'
 def check_workers():
     try: value=int(os.environ.get('CHECK_WORKERS','4'))
     except ValueError: value=4
@@ -215,24 +215,74 @@ def worst(a):
 def temporary(s):
     return any(x in str(s).lower() for x in ('timeout','timed out','lifetime','servfail','no nameservers','unreachable','refused','temporary','resolution failed','dns operation'))
 
-_EXTERNAL_SPF_A_WARNING = re.compile(
-    r'^Error when processing (?P<host>[^:]+): '
-    r'An? a mechanism points to (?P=host), but that domain/subdomain '
+_SPF_A_WARNING = re.compile(
+    r'^Error when processing (?P<owner>[^:]+): '
+    r'An? a mechanism points to (?P<target>[^,]+), but that domain/subdomain '
     r'does not have any A/AAAA records\.$',
     re.IGNORECASE,
 )
+_SPF_SIZE_WARNING = re.compile(
+    r'^The SPF record for (?P<owner>\S+) is (?P<size>\d+) bytes\.',
+    re.IGNORECASE,
+)
 
-def friendly_spf_warning(warning):
-    """Clarify when an SPF warning belongs to an externally included record."""
-    warning = str(warning)
-    match = _EXTERNAL_SPF_A_WARNING.fullmatch(warning)
-    if not match:
-        return warning
-    host = match.group('host')
-    return (
-        f'External SPF warning: {host} uses an a mechanism but has no '
-        'A/AAAA records. This issue is with the included SPF provider.'
-    )
+def _normalise_host(value):
+    return str(value or '').lower().rstrip('.')
+
+def _included_spf_hosts(raw):
+    hosts=set()
+    def walk(parsed):
+        if not isinstance(parsed,dict): return
+        for item in parsed.get('mechanisms',[]) or []:
+            if not isinstance(item,dict): continue
+            if item.get('mechanism')=='include':
+                hosts.add(_normalise_host(item.get('value')))
+            walk(item.get('parsed'))
+    walk((raw or {}).get('parsed',{}))
+    return hosts
+
+def friendly_spf_warning(domain,warning,raw=None):
+    """Add ownership, impact and action without mislabelling direct-domain SPF."""
+    warning=str(warning)
+    domain=_normalise_host(domain)
+    includes=_included_spf_hosts(raw or {})
+    match=_SPF_A_WARNING.fullmatch(warning)
+    if match:
+        owner=_normalise_host(match.group('owner'))
+        target=_normalise_host(match.group('target'))
+        external=owner != domain and owner in includes
+        if external:
+            return (f'External provider: {owner} uses an a mechanism but has no '
+                    'A/AAAA records. The included SPF provider must correct this record.')
+        return (f'Action recommended: {target} uses an a mechanism but has no A/AAAA '
+                'records. Remove the ineffective mechanism or publish the intended address record.')
+    match=_SPF_SIZE_WARNING.match(warning)
+    if match:
+        owner=_normalise_host(match.group('owner'))
+        size=match.group('size')
+        if owner != domain and owner in includes:
+            return (f'External provider: {owner} publishes a {size}-byte SPF response, above '
+                    'the approximately 450-byte recommendation. The included SPF provider owns this record.')
+    return warning
+
+def friendly_dmarc_warning(warning):
+    warning=str(warning)
+    obsolete=re.fullmatch(r'Support for the (pct|ri|rf) tag was removed in RFC 9989',warning)
+    if obsolete:
+        tag=obsolete.group(1)
+        return (f'Recommendation: The {tag} tag is obsolete under RFC 9989. '
+                'Remove it during the next DMARC record update; DMARC can still operate meanwhile.')
+    if warning.startswith('An sp tag value of none makes DMARC unenforced'):
+        return ('Action recommended: DMARC is not enforced for subdomains because sp=none. '
+                'Review whether subdomains send mail, then change or remove sp=none if they should inherit the main policy.')
+    if warning=='rua tag (destination for aggregate reports) not found.':
+        return ('Recommendation: No aggregate-reporting address (rua) is configured. '
+                'DMARC enforcement can still work, but aggregate visibility is unavailable.')
+    if warning=='Some DMARC reporters might not send to more than two rua URIs.':
+        return ('Recommendation: More than two rua destinations are configured. '
+                'Some DMARC reporters may skip additional destinations.')
+    return warning
+
 def record_check(kind,domain,policy):
     from checkdmarc.spf import check_spf
     from checkdmarc.dmarc import check_dmarc
@@ -240,14 +290,19 @@ def record_check(kind,domain,policy):
         raw=(check_spf if kind=='spf' else check_dmarc)(domain,timeout=3.0,retries=1)
         raw=json.loads(json.dumps(raw,default=str)); warnings=list(raw.get('warnings',[]))
         if kind=='spf':
-            warnings=[friendly_spf_warning(warning) for warning in warnings]
+            warnings=[friendly_spf_warning(domain,warning,raw) for warning in warnings]
+        else:
+            warnings=[friendly_dmarc_warning(warning) for warning in warnings]
         if raw.get('valid') is not True:
             error=str(raw.get('error','No valid result returned.'))
-            return res('unknown' if temporary(error) else 'fail',error,raw=raw)
+            if temporary(error):
+                return res('unknown','Temporary lookup issue: '+error,raw=raw)
+            return res('fail',error,raw=raw)
         if kind=='spf':
             if raw.get('parsed',{}).get('all') in ('pass','neutral'):
                 return res('fail','SPF allows all senders or has no restrictive fallback.',raw=raw)
-            if '%' in str(raw.get('record','')): warnings.append('SPF macros require runtime sender context; static validation is incomplete.')
+            if '%' in str(raw.get('record','')):
+                warnings.append('Recommendation: SPF macros require runtime sender context; static validation is incomplete.')
             message='Valid SPF; DNS lookups: '+str(raw.get('dns_lookups','?'))
         else:
             tags=raw.get('tags',{}); actual=tags.get('p',{}).get('value','none')
@@ -258,7 +313,11 @@ def record_check(kind,domain,policy):
             if rank[actual]<rank[policy]: return res('fail',f'Effective policy {actual}; required minimum {policy}.',raw=raw)
             message=f'Valid DMARC; effective policy {actual}; required {policy}.'
         return res('warn' if warnings else 'pass',message,warnings=warnings,raw=raw)
-    except Exception as e: return res('unknown',f'Checker error: {type(e).__name__}: {e}')
+    except Exception as e:
+        message=f'{type(e).__name__}: {e}'
+        if temporary(message): return res('unknown','Temporary lookup issue: '+message)
+        return res('unknown','Checker error: '+message)
+
 def key_check(text):
     from cryptography.hazmat.primitives.serialization import load_der_public_key
     from cryptography.hazmat.primitives.asymmetric import rsa
@@ -282,8 +341,11 @@ def key_check(text):
         except Exception: raise ValueError('Invalid DER-encoded public key.')
         if not isinstance(pub,rsa.RSAPublicKey): raise ValueError('Public key is not RSA.')
         if pub.key_size<1024: raise ValueError('RSA key shorter than 1024 bits.')
-        if pub.key_size<2048: warnings.append('RSA key below recommended 2048 bits.')
-        message=f'RSA {pub.key_size}-bit key'
+        if pub.key_size<2048:
+            warnings.append('Recommendation: Rotate this selector to a 2048-bit RSA key when practical. Existing DKIM signing may still work.')
+            message=f'Recommendation: RSA {pub.key_size}-bit key; rotate to 2048-bit when practical.'
+        else:
+            message=f'RSA {pub.key_size}-bit key'
     elif kind=='ed25519':
         if len(key)!=32: raise ValueError('Ed25519 key must contain 32 bytes.')
         message='Ed25519 key'
@@ -305,7 +367,7 @@ def dkim_check(domain,selected):
             records=[b''.join(x.strings).decode('ascii') for x in answer]
             if len(records)!=1: raise ValueError('Expected exactly one DKIM TXT record.')
             item=key_check(records[0]); item['canonical_name']=str(answer.canonical_name)
-        except (dns.resolver.NXDOMAIN,dns.resolver.NoAnswer): item=res('fail','DKIM TXT record not found, including any CNAME target.')
+        except (dns.resolver.NXDOMAIN,dns.resolver.NoAnswer): item=res('fail',f'Action required: DKIM record not found for {s}. Confirm this selector is currently used for signing; remove it from Domain Monitor if obsolete, otherwise publish or repair its DNS record.')
         except (ValueError,UnicodeError) as e: item=res('fail',str(e))
         except Exception as e: item=res('unknown','DNS/checker error: '+str(e))
         results.append(dict(selector=s,query=name,**item))

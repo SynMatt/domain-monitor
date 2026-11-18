@@ -1,5 +1,22 @@
 # Domain Monitor changelog
 
+## 0.15.0 - 2026-11-18
+
+### Added
+- Added actionable warning categories in message text: Action required, Action recommended, Recommendation, External provider, and Temporary lookup issue.
+- Added regression fixtures from the 166-domain warning audit covering direct and included SPF records, obsolete DMARC tags, subdomain policy, reporting guidance, weak DKIM keys, and missing selectors.
+
+### Changed
+- Expanded 1024-bit DKIM warnings with a 2048-bit rotation recommendation and clarified that existing signing may still work.
+- Missing DKIM selectors now instruct administrators to confirm whether the selector is active, remove stale monitor configuration, or repair DNS.
+- Obsolete DMARC pct, ri, and rf tags are presented as low-priority cleanup recommendations.
+- DMARC sp=none, missing rua, and excess rua destinations now explain impact and the appropriate review action.
+- Oversized SPF records owned by included providers are identified as external-provider recommendations.
+- Updated the README with an Actionable warning categories section and reviewed it for this release.
+
+### Fixed
+- Direct-domain SPF warnings are no longer mislabelled as external-provider issues. External ownership now requires a different hostname found in the parsed SPF include chain.
+
 ## 0.14.9 - 2026-11-18
 
 ### Changed

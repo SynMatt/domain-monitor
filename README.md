@@ -335,6 +335,16 @@ Release tags use semantic versioning, for example `v0.14.0`.
 
 Licensed under the MIT License. See [LICENSE](LICENSE).
 
+## Actionable warning categories
+
+Domain Monitor labels warning text by ownership and action:
+
+- **Action required:** a likely broken active configuration, such as a missing DKIM selector.
+- **Action recommended:** a configuration concern that needs review, such as `sp=none` or a direct SPF mechanism with no address.
+- **Recommendation:** planned maintenance, such as rotating a 1024-bit DKIM key or removing an obsolete DMARC tag.
+- **External provider:** the issue is inside an SPF record included from another provider.
+- **Temporary lookup issue:** DNS or network conditions prevented a reliable result; retry before changing DNS.
+
 ## External SPF warnings
 
 Domain Monitor follows nested SPF `include:` records. When an included provider contains an ineffective `a` mechanism, the warning identifies the problem as belonging to the included SPF provider.
@@ -346,17 +356,17 @@ External SPF warning: _spf.provider.example.net uses an a mechanism but has no A
 ```
 
 The result remains a warning because the monitored domain's SPF record can still be valid and other mechanisms in the included record can continue to authorize senders.
-<!-- README reviewed for release: 0.14.9 -->
+<!-- README reviewed for release: 0.15.0 -->
 
 <!-- BEGIN UPDATE COMMANDS -->
 ### Current release commands
 
-Latest documented release: **v0.14.9**
+Latest documented release: **v0.15.0**
 
 ```bash
 cd /opt/domain-monitor
 sudo ./scripts/update.sh --check
-sudo ./scripts/update.sh --version 0.14.9
+sudo ./scripts/update.sh --version 0.15.0
 sudo docker compose ps
 sudo docker compose exec -T web python -c 'import app; print(app.APP_VERSION)'
 sudo docker compose config --images
