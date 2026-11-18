@@ -1,4 +1,11 @@
 # Domain Monitor changelog
+
+## 0.14.8 - 2026-11-18
+
+### Changed
+- External SPF warnings now clearly identify problems inherited from an included SPF provider. When an included record uses an `a` mechanism but has no A/AAAA records, Domain Monitor identifies the issue as belonging to the included SPF provider.
+- Updated the README with the new external SPF warning behaviour and reviewed it for this release.
+
 ## 0.14.7 - 2026-11-17
 ### Fixed
 - README: the manual example for a larger host now sets `RESOURCE_TUNING='manual'`. Without it the tuner replaced the values on the next update.

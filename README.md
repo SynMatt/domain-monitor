@@ -333,12 +333,23 @@ Release tags use semantic versioning, for example `v0.14.0`.
 
 Licensed under the MIT License. See [LICENSE](LICENSE).
 
-<!-- README reviewed for release: 0.14.7 -->
+## External SPF warnings
+
+Domain Monitor follows nested SPF `include:` records. When an included provider contains an ineffective `a` mechanism, the warning identifies the problem as belonging to the included SPF provider.
+
+Example:
+
+```text
+External SPF warning: _spf.provider.example.net uses an a mechanism but has no A/AAAA records. This issue is with the included SPF provider.
+```
+
+The result remains a warning because the monitored domain's SPF record can still be valid and other mechanisms in the included record can continue to authorize senders.
+<!-- README reviewed for release: 0.14.8 -->
 
 <!-- BEGIN UPDATE COMMANDS -->
 ## Updating Domain Monitor
 
-Latest documented release: **v0.14.7**
+Latest documented release: **v0.14.8**
 
 Run these commands through SSH on the application host, not in a separate development checkout. Adjust the directory if your installation uses another path.
 
@@ -360,7 +371,7 @@ sudo ./scripts/update.sh
 
 ```bash
 cd /opt/domain-monitor
-sudo ./scripts/update.sh --version 0.14.7
+sudo ./scripts/update.sh --version 0.14.8
 ```
 
 ### Verify the deployment

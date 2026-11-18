@@ -43,7 +43,7 @@ from werkzeug.security import check_password_hash
 DATA=os.environ.get('DATA_DIR','/data')
 DB=DATA+'/monitor.sqlite3'
 logging.basicConfig(level=logging.INFO)
-APP_VERSION='0.14.7'
+APP_VERSION='0.14.8'
 def check_workers():
     try: value=int(os.environ.get('CHECK_WORKERS','4'))
     except ValueError: value=4
@@ -214,12 +214,33 @@ def worst(a):
     return next((x for x in ('fail','unknown','warn') if x in states),'pass')
 def temporary(s):
     return any(x in str(s).lower() for x in ('timeout','timed out','lifetime','servfail','no nameservers','unreachable','refused','temporary','resolution failed','dns operation'))
+
+_EXTERNAL_SPF_A_WARNING = re.compile(
+    r'^Error when processing (?P<host>[^:]+): '
+    r'An? a mechanism points to (?P=host), but that domain/subdomain '
+    r'does not have any A/AAAA records\.$',
+    re.IGNORECASE,
+)
+
+def friendly_spf_warning(warning):
+    """Clarify when an SPF warning belongs to an externally included record."""
+    warning = str(warning)
+    match = _EXTERNAL_SPF_A_WARNING.fullmatch(warning)
+    if not match:
+        return warning
+    host = match.group('host')
+    return (
+        f'External SPF warning: {host} uses an a mechanism but has no '
+        'A/AAAA records. This issue is with the included SPF provider.'
+    )
 def record_check(kind,domain,policy):
     from checkdmarc.spf import check_spf
     from checkdmarc.dmarc import check_dmarc
     try:
         raw=(check_spf if kind=='spf' else check_dmarc)(domain,timeout=3.0,retries=1)
         raw=json.loads(json.dumps(raw,default=str)); warnings=list(raw.get('warnings',[]))
+        if kind=='spf':
+            warnings=[friendly_spf_warning(warning) for warning in warnings]
         if raw.get('valid') is not True:
             error=str(raw.get('error','No valid result returned.'))
             return res('unknown' if temporary(error) else 'fail',error,raw=raw)
