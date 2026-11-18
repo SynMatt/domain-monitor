@@ -43,7 +43,7 @@ from werkzeug.security import check_password_hash
 DATA=os.environ.get('DATA_DIR','/data')
 DB=DATA+'/monitor.sqlite3'
 logging.basicConfig(level=logging.INFO)
-APP_VERSION='1.0.0'
+APP_VERSION='1.1.0'
 def check_workers():
     try: value=int(os.environ.get('CHECK_WORKERS','4'))
     except ValueError: value=4
@@ -658,6 +658,74 @@ def index():
     }
     filtered_domains=sorted(filtered_domains,key=sort_keys[sort_mode])
     return render_template('index.html',domains=domains,filtered_domains=filtered_domains,worker_ok=bool(b and now-float(b[0])<180),clock=clock,timezone_name=timezone_name,summary=summary,filter_kind=filter_kind,filter_status=filter_status,search_query=search_query,sort_mode=sort_mode,check_batch=check_batch,now=now)
+DEFAULT_SELECTORS='selector1,selector2'
+MAX_DOMAINS_PER_ADD=200
+MAX_DOMAINS_TOTAL=500
+MAX_DOMAIN_TEXT=20000
+def parse_domain_entries(text,shared_label='',chosen_selectors=''):
+    """Turn the Add domain text into [(domain,label)] without touching the database.
+    Each line is a domain, optionally followed by a comma and a client label.
+    Returns (entries,repeated_lines,errors); errors is a list of (line number,message)."""
+    import csv
+    if len(text)>MAX_DOMAIN_TEXT: raise ValueError(f'Too much text. Add at most {MAX_DOMAINS_PER_ADD} domains at a time.')
+    lines=[line for line in text.splitlines() if line.strip()]
+    if not lines: raise ValueError('Enter at least one domain.')
+    if len(lines)>MAX_DOMAINS_PER_ADD: raise ValueError(f'Add at most {MAX_DOMAINS_PER_ADD} domains at a time.')
+    entries=[]; seen=set(); errors=[]; repeated=0
+    for number,line in enumerate(lines,1):
+        try:
+            fields=next(csv.reader([line],strict=True))
+            if not 1<=len(fields)<=2: raise ValueError('Use domain or domain,label on each line.')
+            name=domain_name(fields[0])
+            label=fields[1].strip() if len(fields)==2 and fields[1].strip() else shared_label
+            if len(label)>100: raise ValueError('Label exceeds 100 characters.')
+            if chosen_selectors and any(len(f'{s}._domainkey.{name}')>253 for s in chosen_selectors.split(',')):
+                raise ValueError('Selector and domain name are too long together.')
+            if name in seen: repeated+=1; continue
+            seen.add(name); entries.append((name,label))
+        except (ValueError,csv.Error,StopIteration) as exc:
+            errors.append((number,str(exc)))
+    return entries,repeated,errors
+def add_summary(added,existing,repeated):
+    """Message shown after an Add domain submission."""
+    if added==1 and not existing and not repeated: return 'Saved. Check queued.'
+    text=f"Added {added} domain{'s' if added!=1 else ''}."
+    skipped=[]
+    if existing: skipped.append(f"{existing} existing domain{'s' if existing!=1 else ''}")
+    if repeated: skipped.append(f"{repeated} duplicate line{'s' if repeated!=1 else ''}")
+    if skipped: text+=' '+' and '.join(skipped)+' skipped.'
+    if existing: text+=' Existing domains were not changed.'
+    return text+(' Initial check queued.' if added==1 else ' Initial checks queued.')
+def add_domains(form):
+    """Add one or many domains from the Add domain form and return the message to show.
+    Everything is checked before anything is saved. ValueError means nothing was added."""
+    selected=selectors(form['selectors']) or DEFAULT_SELECTORS
+    if form['policy'] not in ('none','quarantine','reject'): raise ValueError('Invalid policy.')
+    shared_label=form['label'].strip()
+    if len(shared_label)>100: raise ValueError('Label exceeds 100 characters.')
+    line_count=len([line for line in form['domain'].splitlines() if line.strip()])
+    entries,repeated,errors=parse_domain_entries(form['domain'],shared_label,selected)
+    if errors:
+        if line_count==1: raise ValueError(errors[0][1])
+        raise ValueError('Nothing was added. '+' | '.join(f'Line {number}: {message}' for number,message in errors[:10]))
+    if len(entries)>1 and form['manual_expiry'].strip():
+        raise ValueError('A manual expiry date can only be set when adding a single domain. Leave it blank, or edit each domain afterwards.')
+    manual_expiry=domain_expiry.validate_manual_date(form['manual_expiry'])
+    manual_expiry_source=form['manual_expiry_source'].strip()
+    if len(manual_expiry_source)>100: raise ValueError('Expiry source/note exceeds 100 characters.')
+    if manual_expiry and not manual_expiry_source: manual_expiry_source='Manual / registrar portal'
+    with db() as c:
+        c.execute('BEGIN IMMEDIATE')
+        existing={row[0] for row in c.execute('SELECT domain FROM domains')}
+        new=[entry for entry in entries if entry[0] not in existing]
+        skipped=len(entries)-len(new)
+        if not new:
+            raise ValueError('Domain already exists.' if len(entries)==1 else f'No domains added. All {len(entries)} domains already exist.')
+        if len(existing)+len(new)>MAX_DOMAINS_TOTAL: raise ValueError(f'Initial version limit: {MAX_DOMAINS_TOTAL} domains. Nothing was added.')
+        due=next_run(time.time(),get_clock(c),selected_zone(c))
+        c.executemany('INSERT INTO domains(domain,label,selectors,policy,manual_expiry,manual_expiry_source,due,manual_pending) VALUES(?,?,?,?,?,?,?,1)',
+            [(name,label,selected,form['policy'],manual_expiry,manual_expiry_source,due) for name,label in new])
+    return add_summary(len(new),skipped,repeated)
 @app.route('/new',methods=['GET','POST'])
 @app.route('/domain/<int:ident>/edit',methods=['GET','POST'])
 def edit(ident=None):
@@ -667,6 +735,8 @@ def edit(ident=None):
     if request.method=='POST':
         form.update({k:request.form.get(k,'') for k in ('domain','label','selectors','policy','manual_expiry','manual_expiry_source')})
         try:
+            if not ident:
+                flash(add_domains(form)); return redirect('/')
             name=domain_name(form['domain']); selected=selectors(form['selectors'])
             if selected and any(len(f'{s}._domainkey.{name}')>253 for s in selected.split(',')): raise ValueError('Selector and domain name are too long together.')
             if form['policy'] not in ('none','quarantine','reject'): raise ValueError('Invalid policy.')
@@ -676,11 +746,7 @@ def edit(ident=None):
             if len(manual_expiry_source)>100: raise ValueError('Expiry source/note exceeds 100 characters.')
             if manual_expiry and not manual_expiry_source: manual_expiry_source='Manual / registrar portal'
             with db() as c:
-                if ident:
-                    c.execute('UPDATE domains SET domain=?,label=?,selectors=?,policy=?,manual_expiry=?,manual_expiry_source=?,revision=revision+1,manual_pending=1,checked=NULL,result=NULL WHERE id=?',(name,form['label'],selected,form['policy'],manual_expiry,manual_expiry_source,ident))
-                else:
-                    if c.execute('SELECT COUNT(*) FROM domains').fetchone()[0]>=500: raise ValueError('Initial version limit: 500 domains.')
-                    c.execute('INSERT INTO domains(domain,label,selectors,policy,manual_expiry,manual_expiry_source,due,manual_pending) VALUES(?,?,?,?,?,?,?,1)',(name,form['label'],selected,form['policy'],manual_expiry,manual_expiry_source,next_run(time.time(),get_clock(c),selected_zone(c))))
+                c.execute('UPDATE domains SET domain=?,label=?,selectors=?,policy=?,manual_expiry=?,manual_expiry_source=?,revision=revision+1,manual_pending=1,checked=NULL,result=NULL WHERE id=?',(name,form['label'],selected,form['policy'],manual_expiry,manual_expiry_source,ident))
             flash('Saved. Check queued.'); return redirect('/')
         except (ValueError,sqlite3.IntegrityError) as e: flash('Domain already exists.' if isinstance(e,sqlite3.IntegrityError) else str(e))
     return render_template('edit.html',form=form,ident=ident)
@@ -732,51 +798,8 @@ def detail(ident):
 
 @app.route('/bulk-add', methods=['GET', 'POST'])
 def bulk_add():
-    import csv
-    text=request.form.get('domains','')
-    selected=request.form.get('selectors','')
-    policy=request.form.get('policy','quarantine')
-    summary=None
-    if request.method=='POST':
-        try:
-            default_selectors=selectors(selected)
-            if policy not in ('none','quarantine','reject'):
-                raise ValueError('Invalid minimum DMARC policy.')
-            lines=[line for line in text.splitlines() if line.strip()]
-            if not lines: raise ValueError('Enter at least one domain.')
-            if len(lines)>200: raise ValueError('Import at most 200 domains per batch.')
-            pending=[]; seen=set(); errors=[]; repeated=0
-            for number,line in enumerate(lines,1):
-                try:
-                    fields=next(csv.reader([line],strict=True))
-                    if not 1<=len(fields)<=2:
-                        raise ValueError('Use domain or domain,label on each line.')
-                    name=domain_name(fields[0])
-                    label=fields[1].strip() if len(fields)==2 else ''
-                    if len(label)>100: raise ValueError('Label exceeds 100 characters.')
-                    if default_selectors and any(len(f'{s}._domainkey.{name}')>253 for s in default_selectors.split(',')):
-                        raise ValueError('Selector and domain combination is too long.')
-                    if name in seen: repeated+=1; continue
-                    seen.add(name); pending.append((name,label))
-                except (ValueError,csv.Error) as exc:
-                    errors.append(f'Line {number}: {exc}')
-            if errors:
-                raise ValueError('Nothing imported. '+ ' | '.join(errors[:10]))
-            with db() as c:
-                c.execute('BEGIN IMMEDIATE')
-                existing={r[0] for r in c.execute('SELECT domain FROM domains')}
-                new=[row for row in pending if row[0] not in existing]
-                skipped=len(pending)-len(new)+repeated
-                if len(existing)+len(new)>500:
-                    raise ValueError('Import would exceed the 500-domain limit. Nothing imported.')
-                due=next_run(time.time(),get_clock(c),selected_zone(c))
-                c.executemany('INSERT INTO domains(domain,label,selectors,policy,due,manual_pending) VALUES(?,?,?,?,?,1)',
-                    [(name,label,default_selectors,policy,due) for name,label in new])
-            summary=f'Added {len(new)} domains; skipped {skipped} duplicates. Existing domains were not changed. Initial checks queued; daily schedule preserved.'
-            text=''
-        except ValueError as exc:
-            flash(str(exc))
-    return render_template('bulk.html',text=text,selected=selected,policy=policy,summary=summary)
+    """Bulk add was merged into Add domain. Keep the old address working."""
+    return redirect('/new')
 
 
 

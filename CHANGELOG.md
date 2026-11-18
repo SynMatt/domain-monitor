@@ -1,5 +1,21 @@
 # Domain Monitor changelog
 
+## 1.1.0 - 2026-11-18
+
+### Added
+- Add domain now accepts one domain or many, one per line. A line can be `domain` or `domain,client label`; the Label field is used for lines without their own label.
+- When DKIM selectors are left blank, new domains are saved with `selector1` and `selector2`, so Edit settings shows exactly what is checked.
+
+### Changed
+- Replaced the separate Bulk add page with Add domain. One domain or many use the same workflow: every line is checked first, nothing is saved if any line is invalid, existing domains are skipped unchanged, and the shared daily schedule does not move. The old `/bulk-add` address redirects to Add domain.
+- Reordered the top navigation: Dashboard, Add domain, Settings and Change log, then Refresh, Check all domains and Log out. The current page is marked.
+- A manual expiry date can only be set when adding a single domain.
+- Updated the README to describe the combined Add domain form and reviewed it for this release.
+- Rewrote the bulk-import tests for the combined form.
+
+### Security
+- Add domain rejects oversized pasted text on the server as well as in the browser.
+
 ## 1.0.0 - 2026-11-18
 
 ### Added

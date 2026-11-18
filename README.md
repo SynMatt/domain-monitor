@@ -35,6 +35,8 @@ Each domain card includes:
 
 Dashboard search matches domain names, client labels, friendly DNS-host names, and cached nameserver hostnames.
 
+Use **Add domain** to add one domain or many. Enter one domain per line, optionally followed by a comma and a client label, for example `example.com,Example client`. The **Label** field is used for lines that do not have their own label. If **DKIM selectors** is left blank, Domain Monitor checks `selector1` and `selector2`. Every line is checked before anything is saved, so one invalid line stops the whole submission. Domains that already exist are skipped and left unchanged, and each new domain is checked straight away without moving the daily schedule. Up to 200 domains can be added at a time, with a maximum of 500 in total.
+
 ## 🧱 How it works
 
 ```text
@@ -368,17 +370,17 @@ External SPF warning: _spf.provider.example.net uses an a mechanism but has no A
 ```
 
 The result remains a warning because the monitored domain's SPF record can still be valid and other mechanisms in the included record can continue to authorize senders.
-<!-- README reviewed for release: 1.0.0 -->
+<!-- README reviewed for release: 1.1.0 -->
 
 <!-- BEGIN UPDATE COMMANDS -->
 ### Current release commands
 
-Latest documented release: **v1.0.0**
+Latest documented release: **v1.1.0**
 
 ```bash
 cd /opt/domain-monitor
 sudo ./scripts/update.sh --check
-sudo ./scripts/update.sh --version 1.0.0
+sudo ./scripts/update.sh --version 1.1.0
 sudo docker compose ps
 sudo docker compose exec -T web python -c 'import app; print(app.APP_VERSION)'
 sudo docker compose config --images
