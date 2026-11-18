@@ -1,5 +1,17 @@
 # Domain Monitor changelog
 
+## 0.15.1 - 2026-11-18
+
+### Security
+- Removed real hostnames from the README example and the test fixtures. Documentation and tests now use reserved example domains only.
+
+### Added
+- Added a test that fails the build if documentation, tests or scripts contain known real customer or provider names.
+
+### Changed
+- Updated the README example for external SPF warnings to use a reserved example domain.
+- Release commits now use the GitHub no-reply email address.
+
 ## 0.15.0 - 2026-11-18
 
 ### Added
