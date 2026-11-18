@@ -214,6 +214,8 @@ Select **Details & history** on a domain card to see:
 - **Current status:** the latest SPF, DKIM and DMARC results side by side, with warnings and technical details.
 - **History:** one collapsed line per entry showing its date, statuses and what changed since the entry before it, such as *DKIM pass → warn* or *SPF record changed*. Select a line to see the full result.
 
+The details page uses **Summary tiles** for the overview. Current SPF, DKIM, and DMARC results appear **side by side**, followed by the history **change list**.
+
 To keep the database small:
 
 - When a check gives the same result as the one before, that entry is extended instead of adding a new one. It shows *Same result for N checks since …*.
@@ -344,61 +346,20 @@ External SPF warning: _spf.provider.example.net uses an a mechanism but has no A
 ```
 
 The result remains a warning because the monitored domain's SPF record can still be valid and other mechanisms in the included record can continue to authorize senders.
-<!-- README reviewed for release: 0.14.8 -->
+<!-- README reviewed for release: 0.14.9 -->
 
 <!-- BEGIN UPDATE COMMANDS -->
-## Updating Domain Monitor
+### Current release commands
 
-Latest documented release: **v0.14.8**
-
-Run these commands through SSH on the application host, not in a separate development checkout. Adjust the directory if your installation uses another path.
-
-### Check for updates
+Latest documented release: **v0.14.9**
 
 ```bash
 cd /opt/domain-monitor
 sudo ./scripts/update.sh --check
-```
-
-### Install the latest stable release
-
-```bash
-cd /opt/domain-monitor
-sudo ./scripts/update.sh
-```
-
-### Install this release explicitly
-
-```bash
-cd /opt/domain-monitor
-sudo ./scripts/update.sh --version 0.14.8
-```
-
-### Verify the deployment
-
-```bash
-cd /opt/domain-monitor
-sudo ./scripts/update.sh --check
+sudo ./scripts/update.sh --version 0.14.9
 sudo docker compose ps
 sudo docker compose exec -T web python -c 'import app; print(app.APP_VERSION)'
 sudo docker compose config --images
 sudo docker compose port web 8080
 ```
-
-Source and running versions should agree, both services should be healthy, and the published binding should match your deployment.
-
-### Manual backup
-
-```bash
-cd /opt/domain-monitor
-sudo ./scripts/backup.sh
-```
-
-Updates briefly interrupt service. Keep an off-host backup. Backups contain sensitive configuration and domain data; never publish them.
-
-These instructions assume a Git-managed installation with updater v0.10.5 or later. Older or script-managed installations need a reviewed migration/bootstrap first. Do not force a checkout over local changes. If an update fails, stop and retain its output and backup path before attempting recovery.
-
-Never share full `docker compose config` output: it can expose credentials. Use `docker compose config --quiet` for validation.
-
-See [the upgrade guide](docs/upgrading.md) for more information.
 <!-- END UPDATE COMMANDS -->

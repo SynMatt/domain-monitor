@@ -1,5 +1,14 @@
 # Domain Monitor changelog
 
+## 0.14.9 - 2026-11-18
+
+### Changed
+- Rebuilt and reviewed the README so each operational topic is documented once and current repository references use `SynMatt/domain-monitor`.
+- Changed the generated release block to contain current-version commands without repeating the Updating or Backups sections.
+
+### Fixed
+- Restored required resource-tuning and domain-details guidance while removing broken Markdown, duplicated instructions, and stale current-document repository references.
+
 ## 0.14.8 - 2026-11-18
 
 ### Changed
