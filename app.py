@@ -43,7 +43,7 @@ from werkzeug.security import check_password_hash
 DATA=os.environ.get('DATA_DIR','/data')
 DB=DATA+'/monitor.sqlite3'
 logging.basicConfig(level=logging.INFO)
-APP_VERSION='1.1.0'
+APP_VERSION='1.2.0'
 def check_workers():
     try: value=int(os.environ.get('CHECK_WORKERS','4'))
     except ValueError: value=4
@@ -106,6 +106,12 @@ CREATE INDEX IF NOT EXISTS check_batch_items_status ON check_batch_items(batch_i
             c.execute("ALTER TABLE domains ADD COLUMN manual_expiry TEXT NOT NULL DEFAULT ''")
         if 'manual_expiry_source' not in columns:
             c.execute("ALTER TABLE domains ADD COLUMN manual_expiry_source TEXT NOT NULL DEFAULT ''")
+        if 'approved_spf' not in columns:
+            c.execute("ALTER TABLE domains ADD COLUMN approved_spf TEXT NOT NULL DEFAULT ''")
+        if 'approved_dmarc' not in columns:
+            c.execute("ALTER TABLE domains ADD COLUMN approved_dmarc TEXT NOT NULL DEFAULT ''")
+        if 'approval_note' not in columns:
+            c.execute("ALTER TABLE domains ADD COLUMN approval_note TEXT NOT NULL DEFAULT ''")
         batch_columns={r[1] for r in c.execute('PRAGMA table_info(check_batches)')}
         if 'cancelled' not in batch_columns:
             c.execute('ALTER TABLE check_batches ADD COLUMN cancelled INTEGER NOT NULL DEFAULT 0')
@@ -282,6 +288,131 @@ def friendly_dmarc_warning(warning):
         return ('Recommendation: More than two rua destinations are configured. '
                 'Some DMARC reporters may skip additional destinations.')
     return warning
+
+APPROVAL_KINDS=('spf','dmarc')
+MAX_APPROVED_FRAGMENTS=20
+MAX_APPROVED_TEXT=5000
+
+def normalise_record_fragment(value):
+    """Case/whitespace-insensitive comparison while preserving punctuation and order."""
+    return re.sub(r'\s+','',str(value or '')).lower()
+
+def approved_fragments(text):
+    text=str(text or '')
+    if len(text)>MAX_APPROVED_TEXT: raise ValueError('Approved exception text is too long.')
+    items=[]
+    for line in text.splitlines():
+        line=line.strip()
+        if not line: continue
+        if len(line)>1000: raise ValueError('Each approved record section must be 1,000 characters or fewer.')
+        if line not in items: items.append(line)
+    if len(items)>MAX_APPROVED_FRAGMENTS: raise ValueError('Maximum 20 approved record sections for SPF or DMARC.')
+    return items
+
+def warning_detail(kind,warning,raw=None):
+    """Explain a warning and describe which existing record section may approve it."""
+    warning=str(warning); raw=raw if isinstance(raw,dict) else {}; record=str(raw.get('record') or '')
+    detail={'warning':warning,'id':'','title':'Configuration warning','problem':warning,
+            'evidence':'See Technical details.','action':'Review the DNS record.','approvable':False,'suggested_fragment':''}
+    if kind=='spf' and not warning.startswith('External provider:') and 'uses an a mechanism but has no A/AAAA records' in warning:
+        token=next((x for x in record.split() if x.lower() in ('a','+a')), '+a')
+        detail.update(id='spf.a_without_address',title='Ineffective SPF a mechanism',
+            problem='The SPF record contains an a mechanism, but its target has no A or AAAA address. The mechanism cannot authorize a sender.',
+            evidence='The address lookup returned no A/AAAA record. MX authorization is separate and is not affected.',
+            action='Remove the a mechanism if it is not needed, or publish the intended A/AAAA address.',
+            approvable=True,suggested_fragment=token)
+    elif kind=='spf' and warning.startswith('External provider:') and 'A/AAAA records' in warning:
+        owner=warning.split(':',1)[1].split(' uses ',1)[0].strip().lower()
+        wanted='include:'+owner
+        include=next((x for x in record.split() if x.lower()==wanted), '')
+        detail.update(id='spf.external_a_without_address',title='Included SPF provider has an ineffective a mechanism',
+            problem='A record included by this SPF policy contains an a mechanism with no usable address.',
+            evidence='The issue is inside the included provider record, not the monitored domain record itself.',
+            action='Ask the included provider to correct the record, or approve the include while accepting the provider-owned warning.',
+            approvable=bool(include),suggested_fragment=include)
+    elif kind=='spf' and warning.startswith('External provider:') and 'SPF response' in warning:
+        include=next((x for x in record.split() if x.lower().startswith('include:')), '')
+        detail.update(id='spf.external_record_size',title='Large included SPF response',
+            problem='An included provider publishes a larger-than-recommended SPF response.',
+            evidence='The warning belongs to the included provider record.',
+            action='Ask the provider to reduce the record, or approve the specific include for this domain.',
+            approvable=bool(include),suggested_fragment=include)
+    elif kind=='dmarc' and warning.startswith('Recommendation: More than two rua destinations'):
+        tags=[]
+        for part in record.split(';'):
+            part=part.strip()
+            if part.lower().startswith(('rua=','ruf=')): tags.append(part)
+        fragment='; '.join(tags)+(';' if tags else '')
+        detail.update(id='dmarc.too_many_rua',title='More than two DMARC aggregate-report destinations',
+            problem='The rua tag contains more than two destinations. Some receivers may ignore destinations beyond the first two.',
+            evidence='The current DMARC record publishes multiple rua reporting addresses.',
+            action='Reduce the rua destinations, or approve this exact rua/ruf configuration if the reporting layout is intentional.',
+            approvable=bool(fragment),suggested_fragment=fragment)
+    elif kind=='dmarc' and 'tag is obsolete under RFC 9989' in warning:
+        match=re.search(r'The ([a-z]+) tag',warning); tag=match.group(1) if match else ''
+        fragment=next((x.strip() for x in record.split(';') if x.strip().lower().startswith(tag+'=')), '')
+        detail.update(id='dmarc.obsolete_'+tag,title='Obsolete DMARC tag',problem=warning,
+            evidence=f'The current record contains the {tag} tag.',action='Remove the obsolete tag during DNS maintenance, or approve this exact tag temporarily.',
+            approvable=bool(fragment),suggested_fragment=fragment+(';' if fragment else ''))
+    elif kind=='dmarc' and warning.startswith('Action recommended: DMARC is not enforced for subdomains because sp=none'):
+        fragment=next((x.strip() for x in record.split(';') if x.strip().lower()=='sp=none'), '')
+        detail.update(id='dmarc.sp_none',title='DMARC is not enforced for subdomains',problem=warning,
+            evidence='The current DMARC record contains sp=none.',action='Review subdomain mail use, then change/remove sp=none or approve this exact setting.',
+            approvable=bool(fragment),suggested_fragment=fragment+(';' if fragment else ''))
+    return detail
+
+def _record_tag(record,name):
+    """Return the whole current DMARC tag, normalised, e.g. 'rua=mailto:a,mailto:b'."""
+    for part in str(record or '').split(';'):
+        part=part.strip()
+        if part.lower().startswith(name+'='): return normalise_record_fragment(part)
+    return ''
+
+def fragment_matches_warning(kind,fragment,detail,raw):
+    """An approval matches only the exact record section the warning is about.
+    Any change to that section (an added address, a different include) stops the match."""
+    if kind not in APPROVAL_KINDS or not detail.get('approvable'): return False
+    raw_record=(raw or {}).get('record')
+    record=normalise_record_fragment(raw_record)
+    wanted=normalise_record_fragment(fragment)
+    if not wanted or wanted not in record: return False
+    ident=detail.get('id','')
+    if ident=='spf.a_without_address': return wanted.rstrip(';') in ('a','+a')
+    if ident.startswith('spf.external_'):
+        expected=normalise_record_fragment(detail.get('suggested_fragment'))
+        return bool(expected) and wanted.rstrip(';')==expected
+    if ident=='dmarc.too_many_rua':
+        tag=_record_tag(raw_record,'rua'); return bool(tag) and tag in wanted
+    if ident.startswith('dmarc.obsolete_'):
+        tag=_record_tag(raw_record,ident.rsplit('_',1)[-1]); return bool(tag) and tag in wanted
+    if ident=='dmarc.sp_none':
+        return _record_tag(raw_record,'sp')=='sp=none' and 'sp=none' in wanted
+    return False
+
+def apply_approved_exceptions(kind,item,approval_text,note=''):
+    """Only warning results can become pass. Fail/unknown results are never changed."""
+    if kind not in APPROVAL_KINDS or not isinstance(item,dict) or item.get('status')!='warn': return item
+    raw=item.get('raw') if isinstance(item.get('raw'),dict) else {}
+    fragments=approved_fragments(approval_text)
+    approved=[]; remaining=[]; details=[]
+    for warning in item.get('warnings') or []:
+        detail=warning_detail(kind,warning,raw); match=''
+        for fragment in fragments:
+            if fragment_matches_warning(kind,fragment,detail,raw): match=fragment; break
+        detail=dict(detail,approved=bool(match),approved_fragment=match)
+        details.append(detail)
+        if match: approved.append(dict(warning=str(warning),finding_id=detail.get('id'),fragment=match))
+        else: remaining.append(str(warning))
+    out=dict(item,warning_details=details,approved_warnings=approved,warnings=remaining)
+    if approved:
+        out['approval_note']=str(note or '').strip()
+        out['technical_status']='warn'
+        if not remaining:
+            out['status']='pass'
+            out['manual_approval_message']='Manually approved exception: All current warnings match approved sections of this DNS record. The original warnings remain visible for audit purposes but do not affect the effective status.'
+        else:
+            out['manual_approval_message']='Manually approved exception: Some current warnings match approved sections of this DNS record. Unapproved warnings still affect the effective status.'
+    return out
 
 def record_check(kind,domain,policy):
     from checkdmarc.spf import check_spf
@@ -462,11 +593,13 @@ def run_domain_check(row,batch_id,scheduled):
     data={}
     for kind in ('spf','dkim','dmarc'):
         data[kind]=part(kind)
+    data['spf']=apply_approved_exceptions('spf',data['spf'],row['approved_spf'],row['approval_note'])
+    data['dmarc']=apply_approved_exceptions('dmarc',data['dmarc'],row['approved_dmarc'],row['approval_note'])
     data['status']=worst(data.values())
     data['dns_evidence']=checked.get('dns_evidence') if isinstance(checked.get('dns_evidence'),dict) else failure
     data['dns_host']=checked.get('dns_host') if isinstance(checked.get('dns_host'),dict) else failure
     data['domain_expiry']=cached or part('domain_expiry')
-    data['configuration']={k:row[k] for k in ('domain','label','selectors','policy')}
+    data['configuration']={k:row[k] for k in ('domain','label','selectors','policy','approved_spf','approved_dmarc','approval_note')}
     data['trigger']='scheduled' if scheduled else 'manual / new or edited domain'
     now=time.time(); encoded=json.dumps(data)
     with db() as c:
@@ -731,9 +864,9 @@ def add_domains(form):
 def edit(ident=None):
     with db() as c: row=c.execute('SELECT * FROM domains WHERE id=?',(ident,)).fetchone() if ident else None
     if ident and not row: abort(404)
-    form=dict(row) if row else dict(domain='',label='',selectors='',policy='quarantine',manual_expiry='',manual_expiry_source='')
+    form=dict(row) if row else dict(domain='',label='',selectors='',policy='quarantine',manual_expiry='',manual_expiry_source='',approved_spf='',approved_dmarc='',approval_note='')
     if request.method=='POST':
-        form.update({k:request.form.get(k,'') for k in ('domain','label','selectors','policy','manual_expiry','manual_expiry_source')})
+        form.update({k:request.form.get(k,'') for k in ('domain','label','selectors','policy','manual_expiry','manual_expiry_source','approved_spf','approved_dmarc','approval_note')})
         try:
             if not ident:
                 flash(add_domains(form)); return redirect('/')
@@ -745,8 +878,12 @@ def edit(ident=None):
             manual_expiry_source=form['manual_expiry_source'].strip()
             if len(manual_expiry_source)>100: raise ValueError('Expiry source/note exceeds 100 characters.')
             if manual_expiry and not manual_expiry_source: manual_expiry_source='Manual / registrar portal'
+            approved_spf='\n'.join(approved_fragments(form['approved_spf']))
+            approved_dmarc='\n'.join(approved_fragments(form['approved_dmarc']))
+            approval_note=form['approval_note'].strip()
+            if len(approval_note)>500: raise ValueError('Approval note exceeds 500 characters.')
             with db() as c:
-                c.execute('UPDATE domains SET domain=?,label=?,selectors=?,policy=?,manual_expiry=?,manual_expiry_source=?,revision=revision+1,manual_pending=1,checked=NULL,result=NULL WHERE id=?',(name,form['label'],selected,form['policy'],manual_expiry,manual_expiry_source,ident))
+                c.execute('UPDATE domains SET domain=?,label=?,selectors=?,policy=?,manual_expiry=?,manual_expiry_source=?,approved_spf=?,approved_dmarc=?,approval_note=?,revision=revision+1,manual_pending=1,checked=NULL,result=NULL WHERE id=?',(name,form['label'],selected,form['policy'],manual_expiry,manual_expiry_source,approved_spf,approved_dmarc,approval_note,ident))
             flash('Saved. Check queued.'); return redirect('/')
         except (ValueError,sqlite3.IntegrityError) as e: flash('Domain already exists.' if isinstance(e,sqlite3.IntegrityError) else str(e))
     return render_template('edit.html',form=form,ident=ident)

@@ -1,5 +1,19 @@
 # Domain Monitor changelog
 
+## 1.2.0 - 2026-11-19
+
+### Added
+- Added per-domain approved SPF and DMARC record sections with an optional approval reason. Matching warnings remain visible for audit but no longer affect the effective status.
+- Added plain-language **What is wrong and how to fix it** details for supported SPF and DMARC warnings, including the exact record section that can be reviewed or approved.
+
+### Changed
+- Domain details now show a blue **Manually approved exception** notice directly below the normal result message, plus the original warning and matched DNS fragment.
+- Approved exceptions are included in configuration-at-check-time and history fingerprints. Changing an approval or its matching DNS record creates a distinct result rather than rewriting history.
+- Updated and reviewed the README for approved configuration exceptions.
+
+### Security
+- Only warning results can be approved. Fail and Unknown results always remain Fail or Unknown. Approved fragments are limited, length-checked, and matched only against the current SPF or DMARC record.
+
 ## 1.1.0 - 2026-11-18
 
 ### Added
