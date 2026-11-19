@@ -43,7 +43,7 @@ from werkzeug.security import check_password_hash
 DATA=os.environ.get('DATA_DIR','/data')
 DB=DATA+'/monitor.sqlite3'
 logging.basicConfig(level=logging.INFO)
-APP_VERSION='1.2.0'
+APP_VERSION='1.2.1'
 def check_workers():
     try: value=int(os.environ.get('CHECK_WORKERS','4'))
     except ValueError: value=4
@@ -884,7 +884,7 @@ def edit(ident=None):
             if len(approval_note)>500: raise ValueError('Approval note exceeds 500 characters.')
             with db() as c:
                 c.execute('UPDATE domains SET domain=?,label=?,selectors=?,policy=?,manual_expiry=?,manual_expiry_source=?,approved_spf=?,approved_dmarc=?,approval_note=?,revision=revision+1,manual_pending=1,checked=NULL,result=NULL WHERE id=?',(name,form['label'],selected,form['policy'],manual_expiry,manual_expiry_source,approved_spf,approved_dmarc,approval_note,ident))
-            flash('Saved. Check queued.'); return redirect('/')
+            flash('Saved. Check queued.'); return redirect(f'/domain/{ident}')
         except (ValueError,sqlite3.IntegrityError) as e: flash('Domain already exists.' if isinstance(e,sqlite3.IntegrityError) else str(e))
     return render_template('edit.html',form=form,ident=ident)
 @app.post('/domain/<int:ident>/check')

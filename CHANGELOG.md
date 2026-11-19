@@ -1,5 +1,11 @@
 # Domain Monitor changelog
 
+## 1.2.1 - 2026-11-19
+
+### Changed
+- Saving a domain's settings now returns to that domain's details page instead of the dashboard. The confirmation message and the queued check are unchanged. Adding domains still returns to the dashboard.
+- Reviewed the README for this release; no wording changes were needed.
+
 ## 1.2.0 - 2026-11-19
 
 ### Added
