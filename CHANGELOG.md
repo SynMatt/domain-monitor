@@ -1,5 +1,12 @@
 # Domain Monitor changelog
 
+## 1.2.2 - 2026-11-19
+
+### Changed
+- SPF and DMARC dashboard badges now show `Pass*` only when a current warning is being manually approved. DKIM badges never use the marker, and merely having an unused approval configured does not add it.
+- Replaced the long one-line status description with a compact two-line legend using coloured circles. The second line explains the approved-exception asterisk and stale results.
+- Reviewed the README for this release; no wording changes were needed.
+
 ## 1.2.1 - 2026-11-19
 
 ### Changed

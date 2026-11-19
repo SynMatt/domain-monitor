@@ -374,17 +374,17 @@ External SPF warning: _spf.provider.example.net uses an a mechanism but has no A
 ```
 
 The result remains a warning because the monitored domain's SPF record can still be valid and other mechanisms in the included record can continue to authorize senders.
-<!-- README reviewed for release: 1.2.1 -->
+<!-- README reviewed for release: 1.2.2 -->
 
 <!-- BEGIN UPDATE COMMANDS -->
 ### Current release commands
 
-Latest documented release: **v1.2.1**
+Latest documented release: **v1.2.2**
 
 ```bash
 cd /opt/domain-monitor
 sudo ./scripts/update.sh --check
-sudo ./scripts/update.sh --version 1.2.1
+sudo ./scripts/update.sh --version 1.2.2
 sudo docker compose ps
 sudo docker compose exec -T web python -c 'import app; print(app.APP_VERSION)'
 sudo docker compose config --images
