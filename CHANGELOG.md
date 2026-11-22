@@ -1,5 +1,14 @@
 # Domain Monitor changelog
 
+## 1.6.1 - 2026-11-23
+
+### Fixed
+- Capitalised user-facing Pass, Warn, Fail and Unknown status labels on domain details, history tooltips, filter accessibility labels and empty-filter messages.
+- Kept internal status values and CSS classes lowercase so filtering, styling and stored results remain unchanged.
+
+### Changed
+- Reviewed the README for this presentation-only release; no documentation changes were needed.
+
 ## 1.6.0 - 2026-11-23
 
 ### Added
