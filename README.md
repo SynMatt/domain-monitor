@@ -41,6 +41,14 @@ Use **Add domain** to add one domain or many. Enter one domain per line, optiona
 
 On a domain's **Edit settings** page, exact SPF or DMARC record sections can be manually approved. A matching warning remains visible on the details page with a **Manually approved exception** notice and the original warning for audit purposes, but it no longer changes the effective result from Pass to Warn. Approvals apply only to warning results, never Fail or Unknown. Matching is case/whitespace-insensitive but otherwise exact; if the DNS section changes, the approval stops matching automatically. Add an approval reason so future administrators know why the exception was accepted.
 
+### DKIM rotation tracking
+
+On **Details & history**, enter a rotation start date or choose **Mark started today**. The date can also be edited under **Edit settings**. The start date is **Day 1 of 4**, in the configured application timezone. The window ends at local midnight at the start of the fifth date: four calendar days, not precisely 96 hours from the click. Reload the page to see the current day.
+
+During the window, a current DKIM warning displays **Warn*** and **DKIM rotation: Day X of 4**. It still counts as Warn in totals, filters and overall health. Fail, Unknown, Pending and Stale are never relabelled or given a rotation asterisk. SPF and DMARC approved-exception stars are unchanged.
+
+Checks continue. A fresh, successfully saved DKIM Pass clears tracking automatically. This confirms only that all configured selectors pass the existing DNS checks, not provider-side signing-key rotation completion. After four days the asterisk disappears; the date remains with a window-ended reminder until cleared or a fresh check passes. Dates are stored in SQLite and included in existing database backups. Historical results are not given today's countdown.
+
 ## 🧱 How it works
 
 ```text
@@ -374,17 +382,17 @@ External SPF warning: _spf.provider.example.net uses an a mechanism but has no A
 ```
 
 The result remains a warning because the monitored domain's SPF record can still be valid and other mechanisms in the included record can continue to authorize senders.
-<!-- README reviewed for release: 1.2.2 -->
+<!-- README reviewed for release: 1.3.5 -->
 
 <!-- BEGIN UPDATE COMMANDS -->
 ### Current release commands
 
-Latest documented release: **v1.2.2**
+Latest documented release: **v1.3.5**
 
 ```bash
 cd /opt/domain-monitor
 sudo ./scripts/update.sh --check
-sudo ./scripts/update.sh --version 1.2.2
+sudo ./scripts/update.sh --version 1.3.5
 sudo docker compose ps
 sudo docker compose exec -T web python -c 'import app; print(app.APP_VERSION)'
 sudo docker compose config --images

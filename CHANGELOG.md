@@ -1,5 +1,58 @@
 # Domain Monitor changelog
 
+## 1.3.5 - 2026-11-23
+
+### Fixed
+- Removed a stray CSS closing brace and duplicated selector rules that caused the desktop five-column overview rule to be ignored by Edge.
+- Replaced previous grid overrides with a clean responsive layout based on the browser-tested arrangement.
+- Updated superseded breakpoint and priority assertions in the retained layout tests; added a CSS brace-balance regression check.
+
+### Changed
+- Reviewed the README for this layout-only release; no documentation changes were needed.
+
+## 1.3.4 - 2026-11-23
+
+### Changed
+- Made the verified five-column layout override authoritative, preventing competing CSS from reverting the desktop summary to four columns.
+- Kept responsive three-, two-, and one-column breakpoints with the same CSS priority; DKIM rotation behaviour is unchanged.
+- Reviewed the README for this layout-only release; no documentation changes were needed.
+
+## 1.3.3 - 2026-11-23
+
+### Changed
+- Reflowed the five domain overview tiles into a compact, responsive grid to remove the mostly empty second row on desktop widths.
+- Reduced overview padding and DKIM rotation control spacing without changing rotation behaviour.
+- Reviewed the README for this layout-only release; no documentation changes were needed.
+
+## 1.3.2 - 2026-11-23
+
+### Changed
+- Moved DKIM rotation controls into a compact summary tile beside the existing domain overview instead of using a full-width panel.
+- Shortened the tile to the day badge, date range and compact Save, Today and Clear controls; the detailed DKIM result remains the source of warning information.
+- Reviewed the README for this layout-only release; no documentation changes were needed.
+
+## 1.3.1 - 2026-11-23
+
+### Changed
+- Made DKIM rotation tracking compact on dashboard cards and domain details, with friendly dates, an amber day badge, wrapping controls, and shorter help text.
+- DKIM selector results now use aligned rows so each selector status and message are easier to scan.
+- Reviewed the README for this layout-only release; no documentation changes were needed.
+
+## 1.3.0 - 2026-11-23
+
+### Added
+- Added per-domain DKIM rotation dates and a four-calendar-day counter, with date entry, Mark started today and Clear tracking controls.
+- Current DKIM Warn badges show an asterisk during the active window. Expired windows retain a review reminder without the asterisk.
+
+### Changed
+- DKIM checks, warning totals, filters and overall health remain unchanged during tracking.
+- A fresh saved DKIM Pass clears tracking automatically; this confirms DNS checks only, not provider-side signing-key rotation completion.
+- Updated and reviewed the README for rotation tracking and calendar-day timing.
+
+### Security
+- Rotation updates require authentication and CSRF protection. Dates are validated server-side and future dates are rejected.
+- Added an additive SQLite migration and retained revision guards so an outdated worker cannot clear a newer rotation date.
+
 ## 1.2.2 - 2026-11-19
 
 ### Changed

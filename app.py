@@ -43,7 +43,7 @@ from werkzeug.security import check_password_hash
 DATA=os.environ.get('DATA_DIR','/data')
 DB=DATA+'/monitor.sqlite3'
 logging.basicConfig(level=logging.INFO)
-APP_VERSION='1.2.2'
+APP_VERSION='1.3.5'
 def check_workers():
     try: value=int(os.environ.get('CHECK_WORKERS','4'))
     except ValueError: value=4
@@ -112,6 +112,8 @@ CREATE INDEX IF NOT EXISTS check_batch_items_status ON check_batch_items(batch_i
             c.execute("ALTER TABLE domains ADD COLUMN approved_dmarc TEXT NOT NULL DEFAULT ''")
         if 'approval_note' not in columns:
             c.execute("ALTER TABLE domains ADD COLUMN approval_note TEXT NOT NULL DEFAULT ''")
+        if 'dkim_rotation_started' not in columns:
+            c.execute("ALTER TABLE domains ADD COLUMN dkim_rotation_started TEXT NOT NULL DEFAULT ''")
         batch_columns={r[1] for r in c.execute('PRAGMA table_info(check_batches)')}
         if 'cancelled' not in batch_columns:
             c.execute('ALTER TABLE check_batches ADD COLUMN cancelled INTEGER NOT NULL DEFAULT 0')
@@ -197,6 +199,34 @@ def vacuum_database():
         logging.info('Database vacuumed after history compaction.')
     except sqlite3.Error as e:
         logging.warning('Database VACUUM skipped: %s',e)
+
+DKIM_ROTATION_DAYS=4
+
+def validate_dkim_rotation_date(value,now=None,zone=None):
+    value=str(value or '').strip()
+    if not value: return ''
+    if not re.fullmatch(r'\d{4}-\d{2}-\d{2}',value): raise ValueError('Enter a rotation date in YYYY-MM-DD format.')
+    try: day=datetime.strptime(value,'%Y-%m-%d').date()
+    except ValueError: raise ValueError('Enter a valid DKIM rotation date.')
+    zone=zone or selected_zone()
+    now=time.time() if now is None else now
+    if day>datetime.fromtimestamp(now,zone).date(): raise ValueError('DKIM rotation cannot start on a future date.')
+    return day.isoformat()
+
+def dkim_rotation_info(value,now=None,zone=None):
+    if not value: return None
+    zone=zone or selected_zone()
+    now=time.time() if now is None else now
+    try:
+        start=datetime.strptime(str(value),'%Y-%m-%d').date()
+        elapsed=(datetime.fromtimestamp(now,zone).date()-start).days
+        end=start+timedelta(days=DKIM_ROTATION_DAYS)
+    except (ValueError,TypeError,OverflowError): return None
+    if elapsed<0: return None
+    active=elapsed<DKIM_ROTATION_DAYS
+    return dict(started=start.isoformat(),ends=end.isoformat(),active=active,day=min(elapsed+1,4),
+        message=f'DKIM rotation: Day {elapsed+1} of 4' if active else 'DKIM rotation window ended - review the latest result.')
+
 def domain_name(s):
     s=s.strip().rstrip('.').lower()
     try: s=s.encode('idna').decode('ascii')
@@ -600,12 +630,16 @@ def run_domain_check(row,batch_id,scheduled):
     data['dns_host']=checked.get('dns_host') if isinstance(checked.get('dns_host'),dict) else failure
     data['domain_expiry']=cached or part('domain_expiry')
     data['configuration']={k:row[k] for k in ('domain','label','selectors','policy','approved_spf','approved_dmarc','approval_note')}
+    data['configuration']['dkim_rotation_started']=row.get('dkim_rotation_started','')
     data['trigger']='scheduled' if scheduled else 'manual / new or edited domain'
     now=time.time(); encoded=json.dumps(data)
     with db() as c:
         due=next_run(now,get_clock(c),selected_zone(c)) if scheduled else row['due']
         updated=c.execute('UPDATE domains SET result=?,checked=?,due=?,manual_pending=0 WHERE id=? AND revision=?',(encoded,now,due,row['id'],row['revision'])).rowcount
         if updated:
+            # Only a fresh check accepted by the revision guard may clear tracking.
+            if data['dkim'].get('status')=='pass' and row.get('dkim_rotation_started'):
+                c.execute("UPDATE domains SET dkim_rotation_started='' WHERE id=? AND revision=? AND dkim_rotation_started=?",(row['id'],row['revision'],row['dkim_rotation_started']))
             record_history(c,row['id'],now,data,encoded)
             c.execute('DELETE FROM history WHERE domain_id=? AND id NOT IN(SELECT id FROM history WHERE domain_id=? ORDER BY id DESC LIMIT 1000)',(row['id'],row['id']))
         if batch_id:
@@ -693,6 +727,10 @@ def history_changes(newer,older):
     if (newer.get('domain_expiry') or {}).get('expires_at')!=(older.get('domain_expiry') or {}).get('expires_at'):
         changes.append('Expiry date changed')
     return changes
+@app.template_filter('shortdate')
+def shortdate(v):
+    try: return datetime.strptime(str(v),'%Y-%m-%d').strftime('%d %b %Y')
+    except (ValueError,TypeError): return str(v or '')
 app.jinja_env.globals['app_version']=APP_VERSION
 app.jinja_env.globals['history_changes']=history_changes
 app.secret_key=os.environ.get('SECRET_KEY','')
@@ -742,6 +780,7 @@ def index():
     for r in rows:
         d=dict(r); d['data']=json.loads(r['result']) if r['result'] else None
         d['stale']=bool(r['checked'] and now-r['checked']>26*3600)
+        d['rotation']=dkim_rotation_info(d.get('dkim_rotation_started'),now,ZoneInfo(timezone_name))
         # Use the same database-backed provider label as the card display.
         # This includes built-in and custom DNS provider mappings.
         d['dns_host_search']=app.jinja_env.globals['dns_host_label'](d['data'])
@@ -864,9 +903,9 @@ def add_domains(form):
 def edit(ident=None):
     with db() as c: row=c.execute('SELECT * FROM domains WHERE id=?',(ident,)).fetchone() if ident else None
     if ident and not row: abort(404)
-    form=dict(row) if row else dict(domain='',label='',selectors='',policy='quarantine',manual_expiry='',manual_expiry_source='',approved_spf='',approved_dmarc='',approval_note='')
+    form=dict(row) if row else dict(domain='',label='',selectors='',policy='quarantine',manual_expiry='',manual_expiry_source='',approved_spf='',approved_dmarc='',approval_note='',dkim_rotation_started='')
     if request.method=='POST':
-        form.update({k:request.form.get(k,'') for k in ('domain','label','selectors','policy','manual_expiry','manual_expiry_source','approved_spf','approved_dmarc','approval_note')})
+        form.update({k:request.form.get(k,'') for k in ('domain','label','selectors','policy','manual_expiry','manual_expiry_source','approved_spf','approved_dmarc','approval_note','dkim_rotation_started')})
         try:
             if not ident:
                 flash(add_domains(form)); return redirect('/')
@@ -880,13 +919,34 @@ def edit(ident=None):
             if manual_expiry and not manual_expiry_source: manual_expiry_source='Manual / registrar portal'
             approved_spf='\n'.join(approved_fragments(form['approved_spf']))
             approved_dmarc='\n'.join(approved_fragments(form['approved_dmarc']))
+            rotation_started=validate_dkim_rotation_date(form['dkim_rotation_started'])
             approval_note=form['approval_note'].strip()
             if len(approval_note)>500: raise ValueError('Approval note exceeds 500 characters.')
             with db() as c:
-                c.execute('UPDATE domains SET domain=?,label=?,selectors=?,policy=?,manual_expiry=?,manual_expiry_source=?,approved_spf=?,approved_dmarc=?,approval_note=?,revision=revision+1,manual_pending=1,checked=NULL,result=NULL WHERE id=?',(name,form['label'],selected,form['policy'],manual_expiry,manual_expiry_source,approved_spf,approved_dmarc,approval_note,ident))
+                c.execute('UPDATE domains SET domain=?,label=?,selectors=?,policy=?,manual_expiry=?,manual_expiry_source=?,approved_spf=?,approved_dmarc=?,approval_note=?,dkim_rotation_started=?,revision=revision+1,manual_pending=1,checked=NULL,result=NULL WHERE id=?',(name,form['label'],selected,form['policy'],manual_expiry,manual_expiry_source,approved_spf,approved_dmarc,approval_note,rotation_started,ident))
             flash('Saved. Check queued.'); return redirect(f'/domain/{ident}')
         except (ValueError,sqlite3.IntegrityError) as e: flash('Domain already exists.' if isinstance(e,sqlite3.IntegrityError) else str(e))
-    return render_template('edit.html',form=form,ident=ident)
+    return render_template('edit.html',form=form,ident=ident,rotation_today=datetime.now(selected_zone()).date().isoformat())
+
+@app.post('/domain/<int:ident>/dkim-rotation')
+def save_dkim_rotation(ident):
+    with db() as c:
+        c.execute('BEGIN IMMEDIATE')
+        row=c.execute('SELECT * FROM domains WHERE id=?',(ident,)).fetchone()
+        if not row: abort(404)
+        action=request.form.get('rotation_action','save')
+        if action not in ('save','today','clear'): abort(400,'Invalid rotation action.')
+        zone=selected_zone(c)
+        try:
+            value='' if action=='clear' else datetime.now(zone).date().isoformat() if action=='today' else validate_dkim_rotation_date(request.form.get('dkim_rotation_started',''),zone=zone)
+        except ValueError as exc:
+            flash(str(exc)); return redirect(f'/domain/{ident}')
+        changed=value!=row['dkim_rotation_started']
+        if changed:
+            c.execute("UPDATE domains SET dkim_rotation_started=?,revision=revision+1,manual_pending=CASE WHEN ?<>'' THEN 1 ELSE manual_pending END WHERE id=?",(value,value,ident))
+    flash(('DKIM rotation date saved. Fresh check queued; DNS status is unchanged.' if value else 'DKIM rotation tracking cleared. DNS status is unchanged.') if changed else 'DKIM rotation date unchanged.')
+    return redirect(f'/domain/{ident}')
+
 @app.post('/domain/<int:ident>/check')
 def queue(ident):
     with db() as c:
@@ -931,7 +991,10 @@ def detail(ident):
         row=c.execute('SELECT * FROM domains WHERE id=?',(ident,)).fetchone()
         hist=c.execute('SELECT * FROM history WHERE domain_id=? ORDER BY id DESC LIMIT 30',(ident,)).fetchall()
     if not row: abort(404)
-    return render_template('detail.html',domain=row,history=[dict(x,data=json.loads(x['result'])) for x in hist])
+    now=time.time()
+    rotation=dkim_rotation_info(row['dkim_rotation_started'],now)
+    rotation_fresh=bool(row['result'] and row['checked'] and now-row['checked']<=26*3600)
+    return render_template('detail.html',domain=row,history=[dict(x,data=json.loads(x['result'])) for x in hist],rotation=rotation,rotation_fresh=rotation_fresh,rotation_today=datetime.now(selected_zone()).date().isoformat())
 
 @app.route('/bulk-add', methods=['GET', 'POST'])
 def bulk_add():
