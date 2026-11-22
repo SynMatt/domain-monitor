@@ -382,17 +382,17 @@ External SPF warning: _spf.provider.example.net uses an a mechanism but has no A
 ```
 
 The result remains a warning because the monitored domain's SPF record can still be valid and other mechanisms in the included record can continue to authorize senders.
-<!-- README reviewed for release: 1.3.7 -->
+<!-- README reviewed for release: 1.5.1 -->
 
 <!-- BEGIN UPDATE COMMANDS -->
 ### Current release commands
 
-Latest documented release: **v1.3.7**
+Latest documented release: **v1.5.1**
 
 ```bash
 cd /opt/domain-monitor
 sudo ./scripts/update.sh --check
-sudo ./scripts/update.sh --version 1.3.7
+sudo ./scripts/update.sh --version 1.5.1
 sudo docker compose ps
 sudo docker compose exec -T web python -c 'import app; print(app.APP_VERSION)'
 sudo docker compose config --images
@@ -403,3 +403,11 @@ sudo docker compose port web 8080
 ### Returning to your dashboard
 
 The Domain Monitor heading and Dashboard button remember the last dashboard filter, search, sort order and scroll position in the current browser tab. Returning shows fresh results; a domain that no longer matches the filter disappears. Scroll position is limited to the remaining page height. Reset all clears the filters. Browser storage must be available; saved navigation state is cleared on logout.
+
+### Live domain details
+
+Domain details poll the existing authenticated status endpoint while the tab is visible. The page reloads when a check finishes or a newer check timestamp appears, preserving scroll position and expanded details by their page order. If history changes, expanded sections may refer to different entries. Unsaved rotation-date edits or focus inside the rotation form defer automatic reload; use Refresh when ready. Temporary network failures do not trigger reloads.
+
+### Previous and next domains
+
+When a domain is opened from a filtered, searched or sorted dashboard, the details page shows Previous domain and Next domain controls using the domain order saved for that browser tab. The dashboard filter is retained while browsing. If no saved dashboard sequence exists, or only one domain was visible, the controls stay hidden. End-of-list controls are disabled rather than wrapping. A domain that changes status remains in the saved sequence until the dashboard is revisited and refreshed.

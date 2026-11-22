@@ -1,5 +1,38 @@
 # Domain Monitor changelog
 
+## 1.5.1 - 2026-11-23
+
+### Fixed
+- Build filtered Previous/Next navigation from one title link per dashboard card instead of collecting both links to each domain, which made Next point back to the current domain.
+- Deduplicate previously saved domain sequences when details pages read browser session state.
+
+### Changed
+- Reviewed the README for this navigation fix; no documentation changes were needed.
+
+## 1.5.0 - 2026-11-23
+
+### Added
+- Added Previous domain and Next domain controls on details pages, following the domain order from the saved filtered, searched and sorted dashboard view in the current browser tab.
+- Show the current position within the saved dashboard sequence and disable navigation at either end without wrapping.
+
+### Security
+- Validate saved domain identifiers and the same-origin dashboard return URL before creating navigation links.
+
+### Changed
+- Updated the README to explain saved-view domain navigation, hidden controls without a usable sequence, and behaviour when a domain changes status.
+
+## 1.4.0 - 2026-11-23
+
+### Added
+- Automatically refresh individual domain details after checks finish or a newer check timestamp appears, using the existing authenticated status endpoint.
+- Show queued/checking feedback and retain scroll position and expanded sections during automatic refresh.
+
+### Fixed
+- Defer automatic refresh while rotation-date edits are unsaved or the rotation form has focus.
+
+### Changed
+- Updated the README to explain live details, refresh deferral, and expanded-section restoration limitations.
+
 ## 1.3.7 - 2026-11-23
 
 ### Fixed

@@ -11,7 +11,8 @@
     try {
       const url = new URL(value.href, window.location.origin);
       if (url.origin !== window.location.origin || url.pathname !== '/' || url.hash) return null;
-      return {href: url.pathname + url.search, y: value.y};
+      const ids = Array.isArray(value.ids) ? value.ids.filter(id => /^\d+$/.test(String(id))).slice(0, 1000).map(String) : [];
+      return {href: url.pathname + url.search, y: value.y, ids};
     } catch (_) { return null; }
   }
   const onDashboard = window.location.pathname === '/';
@@ -24,7 +25,12 @@
     if (pending && pending.href === href) {
       write(positionKey, {href, y: pending.y, domainId: '', reason: 'dashboard-return', savedAt: Date.now()});
     }
-    const save = () => write(viewKey, {href, y: Math.max(0, window.scrollY)});
+    const orderedDomainIds = () => [...document.querySelectorAll('.grid article.card')]
+      .map(card => card.querySelector('h2 a[href^="/domain/"]'))
+      .filter(Boolean)
+      .map(link => (link.getAttribute('href') || '').match(/^\/domain\/(\d+)$/))
+      .filter(Boolean).map(match => match[1]);
+    const save = () => write(viewKey, {href, y: Math.max(0, window.scrollY), ids: orderedDomainIds()});
     window.addEventListener('pagehide', save);
     document.addEventListener('click', event => {
       if (event.target.closest('a[href]')) save();
@@ -37,7 +43,7 @@
     if (saved) link.setAttribute('href', saved.href);
     link.addEventListener('click', event => {
       if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
-      const view = onDashboard ? {href, y: Math.max(0, window.scrollY)} : validView(read(viewKey));
+      const view = onDashboard ? {href, y: Math.max(0, window.scrollY), ids: orderedDomainIds()} : validView(read(viewKey));
       if (view) {
         link.setAttribute('href', view.href);
         write(pendingKey, view);
