@@ -1,5 +1,17 @@
 # Domain Monitor changelog
 
+## 1.6.0 - 2026-11-23
+
+### Added
+- Refresh filtered Previous/Next navigation from the server-rendered dashboard so the count and sequence update when domain status changes.
+- Show when the current domain no longer matches the filter, including the number of remaining matching domains and the nearest remaining Previous/Next targets.
+
+### Security
+- Restrict live navigation refreshes to the saved same-origin dashboard URL and authenticated requests.
+
+### Changed
+- Updated the README to explain live filtered counts and navigation after a domain stops matching.
+
 ## 1.5.1 - 2026-11-23
 
 ### Fixed

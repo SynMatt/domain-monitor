@@ -15,5 +15,5 @@ class FilteredDomainNavigationTests(Base):
         navigation=Path('/app/static/domain-navigation.js').read_text()
         for token in ('orderedDomainIds', 'ids: orderedDomainIds()', 'slice(0, 1000)'):
             self.assertIn(token,return_script)
-        for token in ("url.origin !== window.location.origin", "url.pathname !== '/'", "ids.indexOf", "current - 1", "current + 1", "aria-disabled"):
+        for token in ("dashboardUrl.origin !== window.location.origin", "dashboardUrl.pathname !== '/'", "ids.indexOf", "current - 1", "current + 1", "aria-disabled"):
             self.assertIn(token,navigation)

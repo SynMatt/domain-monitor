@@ -382,17 +382,17 @@ External SPF warning: _spf.provider.example.net uses an a mechanism but has no A
 ```
 
 The result remains a warning because the monitored domain's SPF record can still be valid and other mechanisms in the included record can continue to authorize senders.
-<!-- README reviewed for release: 1.5.1 -->
+<!-- README reviewed for release: 1.6.0 -->
 
 <!-- BEGIN UPDATE COMMANDS -->
 ### Current release commands
 
-Latest documented release: **v1.5.1**
+Latest documented release: **v1.6.0**
 
 ```bash
 cd /opt/domain-monitor
 sudo ./scripts/update.sh --check
-sudo ./scripts/update.sh --version 1.5.1
+sudo ./scripts/update.sh --version 1.6.0
 sudo docker compose ps
 sudo docker compose exec -T web python -c 'import app; print(app.APP_VERSION)'
 sudo docker compose config --images
@@ -410,4 +410,4 @@ Domain details poll the existing authenticated status endpoint while the tab is 
 
 ### Previous and next domains
 
-When a domain is opened from a filtered, searched or sorted dashboard, the details page shows Previous domain and Next domain controls using the domain order saved for that browser tab. The dashboard filter is retained while browsing. If no saved dashboard sequence exists, or only one domain was visible, the controls stay hidden. End-of-list controls are disabled rather than wrapping. A domain that changes status remains in the saved sequence until the dashboard is revisited and refreshed.
+When a domain is opened from a filtered, searched or sorted dashboard, the details page shows Previous domain and Next domain controls using the domain order saved for that browser tab. The dashboard filter is retained while browsing. If no saved dashboard sequence exists, or only one domain was visible, the controls stay hidden. End-of-list controls are disabled rather than wrapping. The details page refreshes the saved sequence from the server-rendered dashboard. If the current domain no longer matches, the count decreases and the page shows how many matching domains remain while Previous and Next target the nearest remaining domains.

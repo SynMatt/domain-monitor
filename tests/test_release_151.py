@@ -10,6 +10,7 @@ class DomainNavigationDedupTests(unittest.TestCase):
         self.assertNotIn("querySelectorAll('.grid a[href^=\"/domain/\"]')",s)
     def test_details_deduplicates_existing_saved_sequences(self):
         s=Path('/app/static/domain-navigation.js').read_text()
-        self.assertIn('new Set(saved.ids.filter',s)
+        self.assertIn('new Set(values.filter',s)
+        self.assertIn('const oldIds = dedupe(saved.ids)',s)
         self.assertIn('ids[current + 1]',s)
         self.assertIn('ids[current - 1]',s)
