@@ -382,20 +382,24 @@ External SPF warning: _spf.provider.example.net uses an a mechanism but has no A
 ```
 
 The result remains a warning because the monitored domain's SPF record can still be valid and other mechanisms in the included record can continue to authorize senders.
-<!-- README reviewed for release: 1.3.6 -->
+<!-- README reviewed for release: 1.3.7 -->
 
 <!-- BEGIN UPDATE COMMANDS -->
 ### Current release commands
 
-Latest documented release: **v1.3.6**
+Latest documented release: **v1.3.7**
 
 ```bash
 cd /opt/domain-monitor
 sudo ./scripts/update.sh --check
-sudo ./scripts/update.sh --version 1.3.6
+sudo ./scripts/update.sh --version 1.3.7
 sudo docker compose ps
 sudo docker compose exec -T web python -c 'import app; print(app.APP_VERSION)'
 sudo docker compose config --images
 sudo docker compose port web 8080
 ```
 <!-- END UPDATE COMMANDS -->
+
+### Returning to your dashboard
+
+The Domain Monitor heading and Dashboard button remember the last dashboard filter, search, sort order and scroll position in the current browser tab. Returning shows fresh results; a domain that no longer matches the filter disappears. Scroll position is limited to the remaining page height. Reset all clears the filters. Browser storage must be available; saved navigation state is cleared on logout.

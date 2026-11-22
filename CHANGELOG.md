@@ -1,5 +1,17 @@
 # Domain Monitor changelog
 
+## 1.3.7 - 2026-11-23
+
+### Fixed
+- Preserve dashboard filters, search, sort and scroll position when returning through the heading or Dashboard button after visiting a domain.
+- Reuse existing exact-scroll restoration and automatic-check refresh handling; clamp position when filtered results shrink.
+
+### Security
+- Validate saved return URLs as same-origin dashboard paths and clear saved navigation state on logout.
+
+### Changed
+- Updated the README to explain per-tab dashboard navigation, saved filters and scroll position, logout clearing, and Reset all.
+
 ## 1.3.6 - 2026-11-23
 
 ### Changed
