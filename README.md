@@ -43,7 +43,7 @@ On a domain's **Edit settings** page, exact SPF or DMARC record sections can be 
 
 ### DKIM rotation tracking
 
-On **Details & history**, enter a rotation start date or choose **Mark started today**. The date can also be edited under **Edit settings**. The start date is **Day 1 of 4**, in the configured application timezone. The window ends at local midnight at the start of the fifth date: four calendar days, not precisely 96 hours from the click. Reload the page to see the current day.
+On **Details & history**, enter a rotation start date or choose **Today**. The date can also be edited under **Edit settings**. The start date is **Day 1 of 4**, in the configured application timezone. The window ends at local midnight at the start of the fifth date: four calendar days, not precisely 96 hours from the click. Reload the page to see the current day.
 
 During the window, a current DKIM warning displays **Warn*** and **DKIM rotation: Day X of 4**. It still counts as Warn in totals, filters and overall health. Fail, Unknown, Pending and Stale are never relabelled or given a rotation asterisk. SPF and DMARC approved-exception stars are unchanged.
 
@@ -382,17 +382,17 @@ External SPF warning: _spf.provider.example.net uses an a mechanism but has no A
 ```
 
 The result remains a warning because the monitored domain's SPF record can still be valid and other mechanisms in the included record can continue to authorize senders.
-<!-- README reviewed for release: 1.3.5 -->
+<!-- README reviewed for release: 1.3.6 -->
 
 <!-- BEGIN UPDATE COMMANDS -->
 ### Current release commands
 
-Latest documented release: **v1.3.5**
+Latest documented release: **v1.3.6**
 
 ```bash
 cd /opt/domain-monitor
 sudo ./scripts/update.sh --check
-sudo ./scripts/update.sh --version 1.3.5
+sudo ./scripts/update.sh --version 1.3.6
 sudo docker compose ps
 sudo docker compose exec -T web python -c 'import app; print(app.APP_VERSION)'
 sudo docker compose config --images

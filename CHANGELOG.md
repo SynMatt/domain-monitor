@@ -1,5 +1,11 @@
 # Domain Monitor changelog
 
+## 1.3.6 - 2026-11-23
+
+### Changed
+- Grouped DKIM rotation actions on one row below the date picker, ordered Today, Save, Clear.
+- Updated the README button label to match the current interface and reviewed the release documentation.
+
 ## 1.3.5 - 2026-11-23
 
 ### Fixed
