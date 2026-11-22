@@ -56,7 +56,7 @@ class Release122Tests(Base):
     def test_two_line_legend_is_clear_and_accessible(self):
         self.auth(); html=self.client.get('/').get_data(as_text=True)
         self.assertIn('class="status-legend muted"',html)
-        for text in ('🟢','Pass','🟡','Warning','🔴','Fail','⚪','Unknown / error','Pass includes a manually approved exception','Stale','results are not current health'):
+        for text in ('🟢','Pass','🟡','Warning','🔴','Fail','⚪','Unknown / error','Pass*','Manually approved exception','Stale','Result is not current'):
             self.assertIn(text,html)
         self.assertNotIn('Green: passes checks',html)
 

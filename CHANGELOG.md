@@ -1,5 +1,11 @@
 # Domain Monitor changelog
 
+## 1.6.2 - 2026-11-23
+
+### Changed
+- Made the dashboard status legend consistent by using Pass*, Warn* and Stale as the leading labels with short sentence-case explanations.
+- Reviewed the README for this presentation-only release; no documentation changes were needed.
+
 ## 1.6.1 - 2026-11-23
 
 ### Fixed
