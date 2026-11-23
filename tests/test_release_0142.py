@@ -92,6 +92,6 @@ class Release0142Tests(Base):
         self.assertIn('unittest discover',runner.read_text())
     def test_rdap_https_only_and_current_user_agent(self):
         import domain_expiry
-        self.assertIn("startswith('https://')",Path('/app/domain_expiry.py').read_text())
+        self.assertIn("urlparse(request.full_url).scheme!='https'",Path('/app/domain_expiry.py').read_text())
         self.assertNotRegex(domain_expiry.USER_AGENT,r'/\d+\.\d+')
 if __name__=='__main__': unittest.main(verbosity=2)

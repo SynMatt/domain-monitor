@@ -16,7 +16,7 @@ Domain Monitor checks **SPF**, **DKIM**, **DMARC**, DNS hosting, and domain-expi
 - Friendly DNS-host labels, custom provider mappings, and DNS-host search
 - Domain-expiry checks using RDAP, `.nz` WHOIS fallback, and manual dates
 - Scheduled daily checks and per-domain **Check now**
-- Protected **Check all domains** batches with progress and cancellation
+- Protected **Check all domains** batches with progress and cancellation visible on every authenticated page
 - Parallel checks, with CPU and worker limits set automatically to suit the host
 - Search, filters, sorting, history, backups, and safe update scripts
 - Compact history: identical results are grouped, and full DNS detail is kept for the newest check
@@ -272,6 +272,11 @@ Domain Monitor uses:
 
 Some registries, including `.nz`, may not publish expiry dates. Domain Monitor shows **Not published by registry** rather than guessing. Manual dates can be entered under **Edit settings**.
 
+
+### Optional Metaname expiry source
+
+Set `METANAME_REFERENCE` and `METANAME_API_KEY` in the private `.env` file to use Metaname expiry dates for matching domains already monitored by Domain Monitor. The integration is read-only, requests `domain_names`, uses only `name` and `when_paid_up_to`, and caches the account response for 24 hours. Domains not returned by the Metaname account continue through RDAP and authoritative WHOIS. Manual expiry dates still take priority. Credentials are never displayed or stored in history.
+
 ## 🔍 Troubleshooting
 
 ### Containers are not healthy
@@ -389,17 +394,17 @@ External SPF warning: _spf.provider.example.net uses an a mechanism but has no A
 ```
 
 The result remains a warning because the monitored domain's SPF record can still be valid and other mechanisms in the included record can continue to authorize senders.
-<!-- README reviewed for release: 1.8.2 -->
+<!-- README reviewed for release: 1.10.2 -->
 
 <!-- BEGIN UPDATE COMMANDS -->
 ### Current release commands
 
-Latest documented release: **v1.8.2**
+Latest documented release: **v1.10.2**
 
 ```bash
 cd /opt/domain-monitor
 sudo ./scripts/update.sh --check
-sudo ./scripts/update.sh --version 1.8.2
+sudo ./scripts/update.sh --version 1.10.2
 sudo docker compose ps
 sudo docker compose exec -T web python -c 'import app; print(app.APP_VERSION)'
 sudo docker compose config --images

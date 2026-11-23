@@ -21,13 +21,41 @@ class Release0139Tests(Tests):
 
     def test_cached_expiry_rules(self):
         now=time.time()
-        fresh=m.cached_expiry({'result':self.result_with_expiry(now-3600)},now)
-        self.assertTrue(fresh['cached']); self.assertEqual(fresh['status'],'ok')
-        self.assertIsNone(m.cached_expiry({'result':self.result_with_expiry(now-25*3600)},now))
-        self.assertIsNone(m.cached_expiry({'result':self.result_with_expiry(now-60,'temporary_error')},now))
-        self.assertEqual(m.cached_expiry({'result':self.result_with_expiry(now-60,'not_published')},now)['status'],'not_published')
-        self.assertIsNone(m.cached_expiry({'result':None},now))
-        self.assertIsNone(m.cached_expiry({'result':'not json'},now))
+        def row(result):
+            return {'domain':'example.com','result':result}
+
+        fresh=m.cached_expiry(
+            row(self.result_with_expiry(now-3600)),
+            now
+        )
+        self.assertTrue(fresh['cached'])
+        self.assertEqual(fresh['status'],'ok')
+
+        self.assertIsNone(
+            m.cached_expiry(
+                row(self.result_with_expiry(now-25*3600)),
+                now
+            )
+        )
+        self.assertIsNone(
+            m.cached_expiry(
+                row(self.result_with_expiry(now-60,'temporary_error')),
+                now
+            )
+        )
+
+        not_published=m.cached_expiry(
+            row(self.result_with_expiry(now-60,'not_published')),
+            now
+        )
+        self.assertEqual(not_published['status'],'not_published')
+
+        self.assertIsNone(
+            m.cached_expiry(row(None),now)
+        )
+        self.assertIsNone(
+            m.cached_expiry(row('not json'),now)
+        )
 
     def run_check(self,age):
         self.auth(); ident=self.ident()

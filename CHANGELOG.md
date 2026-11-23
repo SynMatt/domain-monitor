@@ -1,3 +1,47 @@
+## 1.10.2 - 2026-11-24
+
+### Fixed
+- Fixed dashboard reloads interrupting typing in the domain search field while Check all was running.
+- Corrected dashboard batch detection to use the global Check all progress panel.
+- Deferred individual-check page refreshes while dashboard search or filter controls are in use or contain unapplied changes.
+
+### Changed
+- Dashboard status polling now marks completed cards without forcing a full-page reload during Check all.
+- Updated the README release metadata for v1.10.2.
+
+## 1.10.1 - 2026-11-24
+
+### Fixed
+- Fixed the Check all progress panel repeatedly appearing and disappearing when the dashboard reloaded during an active batch.
+- Prevented dashboard layout jumping by server-rendering known active Check all progress before JavaScript polling begins.
+
+### Changed
+- Updated the README release metadata for v1.10.1.
+
+## 1.10.0 - 2026-11-24
+
+### Added
+- Added global Check all progress to every authenticated page.
+- Added live queued, running, failed, worker, average-duration, and estimated-time details.
+- Added access to cancel remaining queued checks from every page while Check all is active.
+
+### Changed
+- Moved Check all progress from the dashboard template into the shared page layout.
+- Check all progress now continues updating when navigating between Domain Monitor pages.
+- Updated the README to describe global Check all progress and reviewed it for v1.10.0.
+
+## 1.9.0 - 2026-11-23
+
+### Added
+- Added an optional read-only Metaname expiry source for matching monitored domains, using only the `domain_names` response fields `name` and `when_paid_up_to`.
+
+### Changed
+- Metaname account results are cached for 24 hours; domains not managed by Metaname continue through RDAP and authoritative WHOIS.
+- Reviewed and updated the README release marker, current release commands, and Metaname configuration guidance for v1.9.0.
+
+### Security
+- Metaname credentials remain in the private `.env` file and are not rendered, logged, or stored in domain history.
+
 ## 1.8.2 - 2026-11-23
 
 ### Fixed

@@ -30,3 +30,4 @@ Run the complete suite in the built container so the tests use the same pinned d
 | `test_release_0145.py` | README update examples outside the generated block use `X.Y.Z`, never a real release number. |
 | `test_release_0146.py` | Domain details layout, change summaries between history entries, grouped entries and the history_changes helper. |
 | `test_release_0147.py` | README manual tuning example, configuration example labels worker/CPU values as automatic, details page described, no release notes in the README body. |
+| `test_registrable_domain_expiry.py` | Public Suffix List registrable-domain expiry resolution for apex and subdomain inputs. |
