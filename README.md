@@ -49,6 +49,13 @@ During the window, a current DKIM warning displays **Warn*** and **DKIM rotation
 
 Checks continue. A fresh, successfully saved DKIM Pass clears tracking automatically. This confirms only that all configured selectors pass the existing DNS checks, not provider-side signing-key rotation completion. After four days the asterisk disappears; the date remains with a window-ended reminder until cleared or a fresh check passes. Dates are stored in SQLite and included in existing database backups. Historical results are not given today's countdown.
 
+
+### Automated expiry fallback
+
+Domain expiry uses the registry selected by the IANA RDAP DNS bootstrap as the primary source. The bootstrap is cached for seven days. If authoritative RDAP is temporarily unavailable or does not publish a usable date, Domain Monitor queries the TLD's authoritative WHOIS service through the IANA WHOIS referral. Responses are bounded and time-limited.
+
+Successful expiry results remain cached for 24 hours. When a later lookup is rate-limited or temporarily fails, Domain Monitor preserves the last confirmed date, labels it **Last known**, records the latest error and allows the next domain check after the retry window to attempt the lookup again rather than replacing the date with Unknown. Expiry data remains separate from SPF, DKIM and DMARC health.
+
 ## 🧱 How it works
 
 ```text
@@ -382,17 +389,17 @@ External SPF warning: _spf.provider.example.net uses an a mechanism but has no A
 ```
 
 The result remains a warning because the monitored domain's SPF record can still be valid and other mechanisms in the included record can continue to authorize senders.
-<!-- README reviewed for release: 1.6.2 -->
+<!-- README reviewed for release: 1.8.2 -->
 
 <!-- BEGIN UPDATE COMMANDS -->
 ### Current release commands
 
-Latest documented release: **v1.6.2**
+Latest documented release: **v1.8.2**
 
 ```bash
 cd /opt/domain-monitor
 sudo ./scripts/update.sh --check
-sudo ./scripts/update.sh --version 1.6.2
+sudo ./scripts/update.sh --version 1.8.2
 sudo docker compose ps
 sudo docker compose exec -T web python -c 'import app; print(app.APP_VERSION)'
 sudo docker compose config --images
@@ -411,3 +418,15 @@ Domain details poll the existing authenticated status endpoint while the tab is 
 ### Previous and next domains
 
 When a domain is opened from a filtered, searched or sorted dashboard, the details page shows Previous domain and Next domain controls using the domain order saved for that browser tab. The dashboard filter is retained while browsing. If no saved dashboard sequence exists, or only one domain was visible, the controls stay hidden. End-of-list controls are disabled rather than wrapping. The details page refreshes the saved sequence from the server-rendered dashboard. If the current domain no longer matches, the count decreases and the page shows how many matching domains remain while Previous and Next target the nearest remaining domains.
+
+### Expiry filtering and Recent changes
+
+The dashboard can filter domains by expired, 0–30 days, 31–60 days, 61–90 days, more than 90 days, or unknown expiry. Manual expiry dates take priority, matching the card display. The filter is preserved with search, sort, return position and Previous/Next navigation.
+
+The **Recent changes** page compares consecutive retained history entries and shows only actual SPF, DKIM, DMARC, DNS-host or expiry-date changes. Repeated unchanged checks do not appear. Existing retained history is backfilled automatically and idempotently because events are derived from stored history rather than duplicated into another table. Backfill is limited to history still retained by the 90-day / 1,000-entry policy. The page shows the newest 500 derived change events.
+
+### Expiry availability changes
+
+Recent changes distinguishes a genuine published expiry-date change from a temporary registry lookup that returned no usable date. Known → Unknown is labelled **Expiry lookup unavailable** and explains that the registration date may still exist. Unknown → Known is labelled **Expiry date available again**. Manual expiry additions, removals and edits are labelled separately. Older compacted history may not retain the exact registry error, so Domain Monitor does not claim a timeout or rate limit unless that detail is present.
+
+- Expiry checks automatically resolve subdomains to the registrable domain using the bundled Public Suffix List snapshot.

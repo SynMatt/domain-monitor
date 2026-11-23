@@ -1,4 +1,75 @@
+## 1.8.2 - 2026-11-23
+
+### Fixed
+- Fixed expiry dates appearing one day later on Recent changes because registry expiry dates were being converted to the selected local timezone.
+- Reviewed and updated the README release marker and current release commands for v1.8.2.
+
 # Domain Monitor changelog
+
+## 1.8.1 - 2026-11-23
+
+### Fixed
+- Invalidated legacy cached expiry results for monitored subdomains when the cached result does not identify the current Public Suffix List registrable domain.
+- Existing subdomains now perform one fresh registrable-domain lookup automatically instead of retaining a pre-v1.8.0 Not published result for up to 24 hours.
+
+### Changed
+- Reviewed the README for this expiry reliability correction; no user instructions changed.
+
+## 1.8.0 - 2026-11-23
+
+### Added
+- Resolve subdomains to their Public Suffix List registrable domain before RDAP or WHOIS expiry lookup.
+- Added direct authoritative RDAP discovery using the IANA DNS bootstrap, with a seven-day local bootstrap cache.
+- Added automatic authoritative WHOIS fallback through the IANA WHOIS referral service when RDAP is unavailable or incomplete.
+- Added locked per-service request spacing, HTTP 429 retry metadata, and last-known expiry preservation for temporary lookup failures.
+
+### Changed
+- Expiry lookups no longer discard a previously confirmed date when a fresh lookup is rate-limited or temporarily unavailable.
+- Expiry labels identify retained values as Last known and show the latest lookup failure in the source line.
+- Updated the README for the automated expiry fallback and last-known-date behaviour.
+
+### Security
+- RDAP remains HTTPS-only; WHOIS referrals are limited to validated hostnames, one authoritative referral, bounded responses, and fixed timeouts.
+
+## 1.7.3 - 2026-11-23
+
+### Fixed
+- Fixed the Current domain expiry tile on domain details so it uses the latest stored automatic expiry result instead of always passing an empty result to the display helpers.
+- A successful manual or scheduled lookup now immediately shows its expiry date and source on the details summary.
+
+### Changed
+- Reviewed the README for this display-only correction; no documentation wording changes were needed.
+
+## 1.7.2 - 2026-11-23
+
+### Fixed
+- Distinguished temporary expiry lookup availability changes from genuine published expiry-date changes in Recent changes.
+- Added plain-language explanations for known-to-unknown, unknown-to-known, published-date and manual-expiry transitions.
+- Include a retained lookup error when available without inventing a cause for compacted historical entries.
+
+### Changed
+- Updated the README to explain expiry availability changes and compacted-history limitations.
+
+## 1.7.1 - 2026-11-23
+
+### Fixed
+- Kept Search, Expiry, Sort and Apply on one desktop row by applying the four-column grid to the shared dashboard stylesheet.
+- Reordered dashboard controls to Search, Expiry, Sort and Apply.
+- Changed Recent changes from generic “record changed” bullets to explicit previous value → current value comparisons for statuses, SPF/DMARC records, DKIM selector records, nameservers and expiry dates.
+
+### Changed
+- Updated the README to describe previous and current values in Recent changes.
+
+## 1.7.0 - 2026-11-23
+
+### Added
+- Added dashboard expiry filters for expired, 0–30, 31–60, 61–90, more than 90 days and unknown expiry, using the same effective expiry shown on domain cards.
+- Added a Recent changes navigation page containing only actual monitored-result changes, with links to domain details and automatic backfill from retained history.
+
+### Changed
+- Preserve the expiry filter with status filters, search, sort, scroll restoration and filtered Previous/Next navigation.
+- Derive change events idempotently from retained history so unchanged checks are never duplicated and no second change table needs maintenance.
+- Updated the README with expiry-filter categories, Recent changes behaviour, the 500-event display limit and the 90-day / 1,000-entry backfill boundary.
 
 ## 1.6.2 - 2026-11-23
 

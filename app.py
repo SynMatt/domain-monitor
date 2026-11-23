@@ -43,7 +43,7 @@ from werkzeug.security import check_password_hash
 DATA=os.environ.get('DATA_DIR','/data')
 DB=DATA+'/monitor.sqlite3'
 logging.basicConfig(level=logging.INFO)
-APP_VERSION='1.6.2'
+APP_VERSION='1.8.2'
 def check_workers():
     try: value=int(os.environ.get('CHECK_WORKERS','4'))
     except ValueError: value=4
@@ -603,6 +603,18 @@ def cached_expiry(row,now=None):
     item=previous.get('domain_expiry') if isinstance(previous,dict) else None
     if not isinstance(item,dict) or item.get('status') not in ('ok','not_published'):
         return None
+    # v1.8.1 reliability fix: pre-v1.8.0 subdomain caches were created by
+    # querying the full hostname. Reject those entries once so the expiry
+    # lookup can query the Public Suffix List registrable domain instead.
+    try:
+        requested=str(row.get('domain') or '').rstrip('.').lower()
+        registration=domain_expiry.registrable_domain(requested)
+    except (ValueError,TypeError):
+        return None
+    if requested!=registration and item.get('registration_domain')!=registration:
+        return None
+    if item.get('last_known') and float(item.get('retry_at') or 0) <= now:
+        return None
     checked=item.get('checked_at')
     if not isinstance(checked,(int,float)) or now-checked>EXPIRY_CACHE_SECONDS or checked>now+300:
         return None
@@ -628,7 +640,13 @@ def run_domain_check(row,batch_id,scheduled):
     data['status']=worst(data.values())
     data['dns_evidence']=checked.get('dns_evidence') if isinstance(checked.get('dns_evidence'),dict) else failure
     data['dns_host']=checked.get('dns_host') if isinstance(checked.get('dns_host'),dict) else failure
-    data['domain_expiry']=cached or part('domain_expiry')
+    fresh_expiry=cached or part('domain_expiry')
+    try:
+        previous_data=json.loads(row.get('result') or '{}')
+    except (TypeError,ValueError):
+        previous_data={}
+    previous_expiry=previous_data.get('domain_expiry') if isinstance(previous_data,dict) else None
+    data['domain_expiry']=domain_expiry.merge_with_previous(fresh_expiry,previous_expiry)
     data['configuration']={k:row[k] for k in ('domain','label','selectors','policy','approved_spf','approved_dmarc','approval_note')}
     data['configuration']['dkim_rotation_started']=row.get('dkim_rotation_started','')
     data['trigger']='scheduled' if scheduled else 'manual / new or edited domain'
@@ -727,6 +745,63 @@ def history_changes(newer,older):
     if (newer.get('domain_expiry') or {}).get('expires_at')!=(older.get('domain_expiry') or {}).get('expires_at'):
         changes.append('Expiry date changed')
     return changes
+def history_change_details(newer,older):
+    """Structured before/after values for the Recent changes page."""
+    if not isinstance(newer,dict) or not isinstance(older,dict): return []
+    details=[]
+    def add(label,before,after,note=''):
+        before='Unknown' if before in (None,'') else str(before)
+        after='Unknown' if after in (None,'') else str(after)
+        if before!=after: details.append(dict(label=label,before=before,after=after,note=note))
+    for kind in ('spf','dkim','dmarc'):
+        new=newer.get(kind) or {}; old=older.get(kind) or {}
+        old_status=str(old.get('status','unknown')).capitalize()
+        new_status=str(new.get('status','unknown')).capitalize()
+        if old_status!=new_status:
+            add(f'{kind.upper()} status',old_status,new_status)
+        if kind=='dkim':
+            def selector_value(result):
+                rows=[]
+                for item in result.get('selectors') or []:
+                    selector=str(item.get('selector') or 'Unknown selector')
+                    status=str(item.get('status') or 'unknown').capitalize()
+                    record=str(item.get('record') or 'No record')
+                    rows.append(f'{selector}: {status} | {record}')
+                return '\n'.join(rows) or 'No selector records'
+            add('DKIM record',selector_value(old),selector_value(new))
+        else:
+            add(f'{kind.upper()} record',(old.get('raw') or {}).get('record') or 'No record',
+                (new.get('raw') or {}).get('record') or 'No record')
+    old_ns='\n'.join((older.get('dns_host') or {}).get('nameservers') or []) or 'No nameservers'
+    new_ns='\n'.join((newer.get('dns_host') or {}).get('nameservers') or []) or 'No nameservers'
+    add('DNS nameservers',old_ns,new_ns)
+    def expiry_value(data):
+        value=(data.get('domain_expiry') or {}).get('expires_at')
+        if value is None: return 'Unknown expiry'
+        try: return datetime.utcfromtimestamp(float(value)).strftime('%d %b %Y')
+        except (TypeError,ValueError,OverflowError,OSError): return 'Unknown expiry'
+    old_expiry=expiry_value(older); new_expiry=expiry_value(newer)
+    if old_expiry!=new_expiry:
+        old_item=older.get('domain_expiry') or {}; new_item=newer.get('domain_expiry') or {}
+        manual=bool(old_item.get('manual') or new_item.get('manual'))
+        if new_expiry=='Unknown expiry':
+            label='Manual expiry removed' if manual else 'Expiry lookup unavailable'
+            note=('The manually configured expiry date was removed.' if manual else
+                'This check did not return a usable registry expiry date. This can be temporary and does not mean the registration date was removed.')
+        elif old_expiry=='Unknown expiry':
+            label='Manual expiry added' if manual else 'Expiry date available again'
+            note=('A manual expiry date was configured.' if manual else
+                'The registry lookup returned a usable expiry date again.')
+        else:
+            label='Manual expiry date changed' if manual else 'Published expiry date changed'
+            note=('The manually configured expiry date changed.' if manual else
+                'The registry-published expiry date changed. Check the registrar if this was unexpected.')
+        error=str(new_item.get('error') or '').strip()
+        if error and new_expiry=='Unknown expiry' and not manual:
+            note += ' Lookup detail: ' + error[:240]
+        add(label,old_expiry,new_expiry,note)
+    return details
+
 @app.template_filter('shortdate')
 def shortdate(v):
     try: return datetime.strptime(str(v),'%Y-%m-%d').strftime('%d %b %Y')
@@ -768,6 +843,28 @@ def login():
     return render_template('login.html')
 @app.post('/logout')
 def logout(): session.clear(); return redirect('/login')
+def effective_expiry_days(domain,now=None,zone=None):
+    """Days to the expiry shown by the UI; manual dates take priority."""
+    now=time.time() if now is None else now
+    zone=zone or selected_zone()
+    manual=str(domain.get('manual_expiry') or '').strip()
+    if manual:
+        try: return (datetime.strptime(manual,'%Y-%m-%d').date()-datetime.fromtimestamp(now,zone).date()).days
+        except (ValueError,TypeError,OverflowError): return None
+    item=(domain.get('data') or {}).get('domain_expiry') or {}
+    if item.get('status')!='ok' or item.get('expires_at') is None: return None
+    try: return int((float(item['expires_at'])-now)//86400)
+    except (TypeError,ValueError,OverflowError): return None
+
+def expiry_bucket(domain,now=None,zone=None):
+    days=effective_expiry_days(domain,now,zone)
+    if days is None: return 'unknown'
+    if days < 0: return 'expired'
+    if days <= 30: return '30'
+    if days <= 60: return '60'
+    if days <= 90: return '90'
+    return 'over90'
+
 @app.get('/')
 def index():
     with db() as c:
@@ -781,6 +878,7 @@ def index():
         d=dict(r); d['data']=json.loads(r['result']) if r['result'] else None
         d['stale']=bool(r['checked'] and now-r['checked']>26*3600)
         d['rotation']=dkim_rotation_info(d.get('dkim_rotation_started'),now,ZoneInfo(timezone_name))
+        d['expiry_bucket']=expiry_bucket(d,now,ZoneInfo(timezone_name))
         # Use the same database-backed provider label as the card display.
         # This includes built-in and custom DNS provider mappings.
         d['dns_host_search']=app.jinja_env.globals['dns_host_label'](d['data'])
@@ -810,7 +908,12 @@ def index():
     sort_mode=request.args.get('sort','domain')
     valid_sorts=('severity','domain','last_checked','next_due')
     if sort_mode not in valid_sorts: sort_mode='domain'
+    expiry_filter=request.args.get('expiry','').lower()
+    valid_expiry_filters=('expired','30','60','90','over90','unknown')
+    if expiry_filter not in valid_expiry_filters: expiry_filter=''
     filtered_domains=domains
+    if expiry_filter:
+        filtered_domains=[d for d in filtered_domains if d['expiry_bucket']==expiry_filter]
     if filter_kind:
         filtered_domains=[d for d in filtered_domains if displayed_status(d,filter_kind)==filter_status]
     if search_query:
@@ -829,7 +932,7 @@ def index():
         'next_due':lambda d:(d['due'] or float('inf'),d['domain'])
     }
     filtered_domains=sorted(filtered_domains,key=sort_keys[sort_mode])
-    return render_template('index.html',domains=domains,filtered_domains=filtered_domains,worker_ok=bool(b and now-float(b[0])<180),clock=clock,timezone_name=timezone_name,summary=summary,filter_kind=filter_kind,filter_status=filter_status,search_query=search_query,sort_mode=sort_mode,check_batch=check_batch,now=now)
+    return render_template('index.html',domains=domains,filtered_domains=filtered_domains,worker_ok=bool(b and now-float(b[0])<180),clock=clock,timezone_name=timezone_name,summary=summary,filter_kind=filter_kind,filter_status=filter_status,expiry_filter=expiry_filter,search_query=search_query,sort_mode=sort_mode,check_batch=check_batch,now=now)
 DEFAULT_SELECTORS='selector1,selector2'
 MAX_DOMAINS_PER_ADD=200
 MAX_DOMAINS_TOTAL=500
@@ -1063,6 +1166,26 @@ def domains_status():
         marks=','.join('?' for _ in ids)
         rows=c.execute(f'SELECT id,manual_pending,checked FROM domains WHERE id IN ({marks})',ids).fetchall()  # nosec B608 - placeholders only; values are bound
     return {'domains':{str(r['id']):{'pending':bool(r['manual_pending']),'checking':r['id'] in running,'checked':r['checked']} for r in rows}}
+@app.get('/recent-changes')
+def recent_changes():
+    with db() as c:
+        rows=c.execute("""SELECT h.id,h.domain_id,h.checked,h.result,d.domain,d.label
+            FROM history h JOIN domains d ON d.id=h.domain_id
+            ORDER BY h.domain_id,h.id""").fetchall()
+    previous={}; events=[]
+    for row in rows:
+        try: data=json.loads(row['result'])
+        except (TypeError,ValueError): continue
+        older=previous.get(row['domain_id'])
+        if older is not None:
+            changes=history_change_details(data,older)
+            if changes:
+                events.append(dict(id=row['id'],domain_id=row['domain_id'],domain=row['domain'],label=row['label'],
+                    checked=row['checked'],trigger=data.get('trigger','Legacy check'),changes=changes))
+        previous[row['domain_id']]=data
+    events.sort(key=lambda event:(-event['checked'],-event['id']))
+    return render_template('recent_changes.html',events=events[:500],total=len(events))
+
 @app.get('/changelog')
 def changelog():
     from pathlib import Path
